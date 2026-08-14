@@ -7,10 +7,13 @@ python_bin="${BIT_PYTHON:-/root/miniconda3/envs/BIT_Track/bin/python}"
 baseline_root="${BIT_BASELINE_ROOT:-$workspace_dir/baseline/moped}"
 timeout_per_sequence="${BIT_SEQUENCE_TIMEOUT:-30m}"
 run_number="${BIT_RUN_NUMBER:-1}"
+run_tag="${BIT_RUN_TAG:-run_$run_number}"
+config_glob="${BIT_CONFIG_GLOB:-*/evaluation/*.yml}"
+random_seed="${BIT_RANDOM_SEED:-42}"
 
 cd "$project_dir" || exit 1
 
-mapfile -t configs < <(find config/moped -path '*/evaluation/*.yml' -type f | sort)
+mapfile -t configs < <(find config/moped -path "config/moped/$config_glob" -type f | sort)
 total="${#configs[@]}"
 completed=0
 failed=0
@@ -21,9 +24,9 @@ for config in "${configs[@]}"; do
     sequence_file="${relative##*/}"
     sequence="${sequence_file%.yml}"
     sequence_root="$baseline_root/$object/$sequence"
-    run_dir="$sequence_root/run_$run_number"
+    run_dir="$sequence_root/$run_tag"
 
-    if find "$sequence_root" -name metrics.json -type f -print -quit 2>/dev/null | grep -q .; then
+    if [ -f "$run_dir/metrics.json" ]; then
         echo "[SKIP] $object/$sequence already has metrics"
         completed=$((completed + 1))
         continue
@@ -33,7 +36,7 @@ for config in "${configs[@]}"; do
     mkdir -p "$run_dir"
     "$python_bin" scripts/create_run_manifest.py "$run_dir" \
         --config "$config" --object "$object" --sequence "$sequence" \
-        --expected-frames "$expected_frames" --seed 42 >/dev/null
+        --expected-frames "$expected_frames" --seed "$random_seed" >/dev/null
     start_epoch=$(date +%s)
     echo "[RUN $((completed + failed + 1))/$total] $object/$sequence ($expected_frames frames)"
     dataset_sequence_dir="$workspace_dir/moped/$object/evaluation/$sequence"

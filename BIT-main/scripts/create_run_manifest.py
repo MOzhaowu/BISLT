@@ -60,6 +60,13 @@ def main():
             "path": str(config),
             "sha256": sha256(config),
         },
+        "experiment": {
+            "run_tag": os.environ.get("BIT_RUN_TAG"),
+            "config_glob": os.environ.get("BIT_CONFIG_GLOB"),
+            "model_validation_override": json.loads(
+                os.environ.get("BIT_MODEL_VALIDATION_JSON", "null")
+            ),
+        },
         "code": {
             "git_commit": command_output(["git", "rev-parse", "HEAD"], project_dir),
             "git_status_porcelain": command_output(

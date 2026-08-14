@@ -22,6 +22,7 @@ def flatten(path):
     return {
         "object": data["object"],
         "sequence": data["sequence"],
+        "experiment": path.parent.name,
         "frames": int(data["evaluated_frames"]),
         "add_mean_mm": float(data["add_mean_mm"]),
         "add_auc_100mm": float(data["add_auc_100mm"]),
@@ -67,12 +68,17 @@ def main():
         writer.writerows(rows)
 
     grouped = defaultdict(list)
+    experiments = defaultdict(list)
     for row in rows:
         grouped[row["object"]].append(row)
+        experiments[row["experiment"]].append(row)
     summary = {
         "schema_version": 1,
         "overall": summarize(rows),
         "objects": {name: summarize(values) for name, values in sorted(grouped.items())},
+        "experiments": {
+            name: summarize(values) for name, values in sorted(experiments.items())
+        },
     }
     (output_dir / "summary.json").write_text(
         json.dumps(summary, indent=2, ensure_ascii=False) + "\n"

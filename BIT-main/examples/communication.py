@@ -123,6 +123,7 @@ class LocalStorageCommunication:
 		self.base_data_status_ = True
 		self.max_count_ = max_count
 		self.curr_count_ = 0
+		self.processed_count_ = 0
         
 		if from_sphere == True:
 			self.max_count_ = 1
@@ -169,7 +170,7 @@ class LocalStorageCommunication:
 		self.target_size_files_ += new_target_size_files
 
 		self.curr_count_ = len(self.K_files_)
-		return (self.curr_count_ >= self.max_count_)
+		return (self.curr_count_ - self.processed_count_ >= self.max_count_)
 
 	def set_status(self, status):
 		self.status_ = status
@@ -188,26 +189,27 @@ class LocalStorageCommunication:
 		target_rois = []
 		target_sizes = []
 
-		# select the latest max_count_ data
-		begin = self.curr_count_ - self.max_count_
+		# Consume each C++ keyframe exactly once.
+		begin = self.processed_count_
+		end = begin + self.max_count_
 
 		# RGB
-		newest_rgb_files = self.rgb_files_[begin:]
+		newest_rgb_files = self.rgb_files_[begin:end]
 		for img_file in newest_rgb_files:
 			imgs.append(cv2.imread(self.rgb_root_ + "/" + img_file))
 
 		# prob
-		newest_prob_files = self.prob_files_[begin:]
+		newest_prob_files = self.prob_files_[begin:end]
 		for prob_file in newest_prob_files:
 			probs.append(cv2.imread(self.prob_root_ + "/" + prob_file, cv2.IMREAD_GRAYSCALE))
 
 		# mask
-		newest_mask_files = self.mask_files_[begin:]
+		newest_mask_files = self.mask_files_[begin:end]
 		for mask_file in newest_mask_files:
 			masks.append(cv2.imread(self.mask_root_ + "/" + mask_file, cv2.IMREAD_GRAYSCALE))
 
 		# parsing pose 
-		newest_pose_files = self.pose_files_[begin:]
+		newest_pose_files = self.pose_files_[begin:end]
 		for pose_file in newest_pose_files:
 			with open(self.pose_root_ + "/" + pose_file, 'r') as f:
 				content = f.readlines()
@@ -223,7 +225,7 @@ class LocalStorageCommunication:
 		poses = np.stack(poses, axis = 0)
 
 		# parsing K
-		newest_K_files = self.K_files_[begin:]
+		newest_K_files = self.K_files_[begin:end]
 		for K_file in newest_K_files:
 			with open(self.K_root_ + "/" + K_file, 'r') as f:
 				content = f.readlines()
@@ -234,7 +236,7 @@ class LocalStorageCommunication:
 		Ks = np.stack(Ks, axis = 0)
 
 		# parsing origin roi
-		newest_origin_roi_files = self.origin_roi_files_[begin:]
+		newest_origin_roi_files = self.origin_roi_files_[begin:end]
 		for origin_roi_file in newest_origin_roi_files:
 			with open(self.origin_roi_root_ + "/" + origin_roi_file, 'r') as f:
 				content = f.readlines()
@@ -245,7 +247,7 @@ class LocalStorageCommunication:
 		origin_rois = np.stack(origin_rois, axis = 0)
 
 		# parsing target roi
-		newest_target_roi_files = self.target_roi_files_[begin:]
+		newest_target_roi_files = self.target_roi_files_[begin:end]
 		for target_roi_file in newest_target_roi_files:
 			with open(self.target_roi_root_ + "/" + target_roi_file, 'r') as f:
 				content = f.readlines()
@@ -256,7 +258,7 @@ class LocalStorageCommunication:
 		target_rois = np.stack(target_rois, axis = 0)
 
      	# parsing target size
-		newest_target_size_files = self.target_size_files_[begin:]
+		newest_target_size_files = self.target_size_files_[begin:end]
 		for target_size_file in newest_target_size_files:
 			with open(self.target_size_root_ + "/" + target_size_file, 'r') as f:
 				content = f.readlines()
@@ -266,6 +268,7 @@ class LocalStorageCommunication:
 					target_sizes.append(line_data)
 		target_sizes = np.stack(target_sizes, axis = 0)
 
+		self.processed_count_ = end
 		return DataGroups(rgbs=imgs, probs=probs, masks=masks, Ts=poses, Ks=Ks, origin_rois=origin_rois, target_rois=target_rois, target_sizes=target_sizes)
 
 

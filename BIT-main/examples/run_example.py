@@ -30,6 +30,7 @@ import utils as ut
 import communication
 import sam_utils as su
 import cv2
+from validation_selection import ValidationBuffer, pose_signature
 
 
 
@@ -270,6 +271,16 @@ def append_jsonl(path, record):
         stream.write(json.dumps(record, sort_keys=True) + '\n')
 
 
+def merge_dict(base, override):
+    merged = dict(base)
+    for key, value in override.items():
+        if isinstance(value, dict) and isinstance(merged.get(key), dict):
+            merged[key] = merge_dict(merged[key], value)
+        else:
+            merged[key] = value
+    return merged
+
+
 def save_obj_file(vertices, faces, file_path):
     with open(file_path, 'w') as f:
         f.write(f"#coarse_50.obj\n# \n \n")
@@ -285,7 +296,7 @@ def prepare_image(image, transform, device):
     
 def main():
 
-    set_seed(42) 
+    set_seed(int(os.environ.get('BIT_RANDOM_SEED', '42')))
 
 	# RBOT dataset
     # summer_config_file = "./config/rbot/a_regular_ape.yml"
@@ -302,6 +313,11 @@ def main():
     print("output_dir: ", configs['output_dir'])
     os.makedirs(configs['output_dir'], exist_ok=True)
     validation_config = configs.get('model_validation', {})
+    validation_override = os.environ.get('BIT_MODEL_VALIDATION_JSON')
+    if validation_override:
+        validation_config = merge_dict(
+            validation_config, json.loads(validation_override)
+        )
     validation_enabled = bool(validation_config.get('enabled', True))
     validation_frames = int(validation_config.get('validation_frames', 1))
     validation_min_improvement = float(validation_config.get('min_improvement', 0.01))
@@ -313,6 +329,11 @@ def main():
     validation_rotation_delta_deg = float(validation_config.get('rotation_delta_deg', 2.0))
     validation_translation_delta = float(validation_config.get('translation_delta', 0.005))
     validation_max_iou_regression = float(validation_config.get('max_iou_regression', 0.005))
+    validation_buffer_size = int(validation_config.get('buffer_size', 32))
+    selection_config = validation_config.get('selection', {})
+    selection_rotation_weight = float(selection_config.get('rotation_weight', 1.0))
+    selection_translation_weight = float(selection_config.get('translation_weight', 100.0))
+    selection_quality_weight = float(selection_config.get('quality_weight', 0.25))
     registry_path = os.path.join(
         os.path.dirname(configs['output_dir']), 'model_registry.jsonl'
     )
@@ -362,6 +383,7 @@ def main():
     process = subprocess.Popen([configs['tracker'], summer_config_file])
 
     loop_nums = 0
+    validation_buffer = ValidationBuffer(capacity=validation_buffer_size)
         
     while(True):
         return_code = process.poll()
@@ -414,15 +436,34 @@ def main():
             stable_model_path = save_obj_path if cur_model_deformed_nums > 0 else None
 
             all_indices = list(range(len(probs_npy)))
-            held_out_count = 0
+            validation_buffer.add(probs_npy, dataGroups.Ts_, dataGroups.Ks_)
+            validation_records = []
             if validation_enabled and stable_model_path and len(all_indices) >= 3:
-                held_out_count = min(validation_frames, len(all_indices) - 2)
-            validation_indices = (
-                all_indices[-held_out_count:] if held_out_count else []
-            )
-            training_indices = (
-                all_indices[:-held_out_count] if held_out_count else all_indices
-            )
+                validation_records = validation_buffer.select(
+                    validation_frames,
+                    rotation_weight=selection_rotation_weight,
+                    translation_weight=selection_translation_weight,
+                    quality_weight=selection_quality_weight,
+                )
+            selected_signatures = {
+                record['signature'] for record in validation_records
+            }
+            training_indices = [
+                index for index in all_indices
+                if pose_signature(dataGroups.Ts_[index]) not in selected_signatures
+            ]
+            while len(training_indices) < 2 and validation_records:
+                validation_records.pop()
+                selected_signatures = {
+                    record['signature'] for record in validation_records
+                }
+                training_indices = [
+                    index for index in all_indices
+                    if pose_signature(dataGroups.Ts_[index]) not in selected_signatures
+                ]
+            validation_pose_signatures = [
+                list(record['signature']) for record in validation_records
+            ]
 
             if stable_model_path:
                 model = Model(stable_model_path).cuda()
@@ -476,10 +517,16 @@ def main():
             reason = 'initial_model'
             stable_model = None
             base_stable_geometry_version = stable_geometry_version
-            if validation_indices:
-                validation_poses = Ts_all[validation_indices]
-                validation_intrinsics = Ks_all[validation_indices]
-                validation_masks = probs_npy[validation_indices]
+            if validation_records:
+                validation_poses = torch.from_numpy(np.stack([
+                    record['pose'] for record in validation_records
+                ]))
+                validation_intrinsics = torch.from_numpy(np.stack([
+                    record['intrinsic'] for record in validation_records
+                ])).to(dtype=torch.float32)
+                validation_masks = np.stack([
+                    record['mask'] for record in validation_records
+                ])
                 candidate_gate_metrics = evaluate_model_gate_metrics(
                     model, validation_masks, validation_poses,
                     validation_intrinsics, transform, lighting, rasterizer,
@@ -550,7 +597,8 @@ def main():
                 'translation_delta': validation_translation_delta,
                 'max_iou_regression': validation_max_iou_regression,
                 'training_indices': training_indices,
-                'validation_indices': validation_indices,
+                'validation_pose_signatures': validation_pose_signatures,
+                'validation_buffer_size': len(validation_buffer),
                 'candidate_path': candidate_path,
                 'published_path': published_path,
             }
