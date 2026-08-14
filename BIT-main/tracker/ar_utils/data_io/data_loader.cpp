@@ -750,7 +750,7 @@ namespace ar3dv
 		Eigen::VectorXf se3(6);
 		// VLOG(0) << input[3] << " " << input[4] << " " << input[5] << " " << input[0] << " " << input[1] << " " <<  input[2];
 		se3 << input[3], input[4], input[5], input[0], input[1], input[2];
-		Sophus::SE3<float> SE3 = Sophus::SE3<float>::exp(se3);
+		Sophus::SE3f SE3 = Sophus::SE3f::exp(se3);
 		auto pose = SE3.matrix();
 		return cv::Matx44f{
 			pose(0, 0), pose(0, 1), pose(0, 2), pose(0, 3),

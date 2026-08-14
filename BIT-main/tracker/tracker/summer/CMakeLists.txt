@@ -47,5 +47,5 @@ file(GLOB SOURCES
 )
 
 add_library(SUMMER_LIB ${SOURCES})
-target_link_libraries(SUMMER_LIB ${DEP_LIBS} -lglfw3 -lX11 -lXxf86vm -ldl -lpthread  assimp)
+target_link_libraries(SUMMER_LIB ${DEP_LIBS} glfw -lX11 -lXxf86vm -ldl -lpthread  assimp)
 

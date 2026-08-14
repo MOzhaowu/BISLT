@@ -19,6 +19,12 @@ FIND_PACKAGE(ASSIMP REQUIRED)
 FIND_PACKAGE(Glog REQUIRED)
 FIND_PACKAGE(Gflags REQUIRED)
 FIND_PACKAGE(Sophus REQUIRED)
+if(NOT TARGET Sophus::Sophus)
+    add_library(Sophus::Sophus INTERFACE IMPORTED GLOBAL)
+    set_target_properties(Sophus::Sophus PROPERTIES
+        INTERFACE_INCLUDE_DIRECTORIES "${Sophus_INCLUDE_DIRS}"
+    )
+endif()
 find_package(nlohmann_json REQUIRED)
 
 INCLUDE_DIRECTORIES(

@@ -22,7 +22,7 @@ Eigen::Matrix4d cvteigen::SVDOrthogonal(const Eigen::Matrix4d &T)
 Eigen::Vector3d cvteigen::R2so3(const Eigen::Matrix3d &R)
 {
 	Eigen::Matrix3d RO = SVDOrthogonal(R);
-	Sophus::SO3<double> SO3_R(RO);
+	Sophus::SO3d SO3_R(RO);
 	Eigen::Vector3d so3 = SO3_R.log();
 	return so3;
 }

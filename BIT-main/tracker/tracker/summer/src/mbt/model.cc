@@ -248,7 +248,8 @@ namespace summer
 		VLOG(0) << "Start to load model";
 		Assimp::Importer importer;
 
-		const aiScene *scene = importer.ReadFile(modelFilename, aiProcessPreset_TargetRealtime_Fast);
+		const aiScene *scene = importer.ReadFile(
+			modelFilename, aiProcessPreset_TargetRealtime_Fast | aiProcess_JoinIdenticalVertices);
 
 		CHECK(scene != nullptr) << "Error::Mesh Model Empty from Path: " << modelFilename;
 
@@ -332,7 +333,7 @@ namespace summer
 		}
 		else
 		{
-			svertices = vertices;
+			IdentAdd(svertices, mesh->mVertices, mesh->mNumVertices);
 		}
 
 		if (mesh->mNumVertices < 24 * 3)
@@ -379,7 +380,8 @@ namespace summer
 	void Model::loadSimpleModel(const string modelFilename)
 	{
 		Assimp::Importer importer;
-		const aiScene *scene = importer.ReadFile(modelFilename, aiProcessPreset_TargetRealtime_Fast);
+		const aiScene *scene = importer.ReadFile(
+			modelFilename, aiProcessPreset_TargetRealtime_Fast | aiProcess_JoinIdenticalVertices);
 		aiMesh *mesh = scene->mMeshes[0];
 
 		for (int i = 0; i < mesh->mNumVertices; i++)

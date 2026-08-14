@@ -483,8 +483,13 @@ def compare_rendered_imgs(dir_1, dir_2):
 		cv2.waitKey(0)
             
 def load_config(config_path="config/dataset.yml"):
-    with open(config_path, "r") as f:
-        return yaml.safe_load(f)
+    with open(config_path, "r", encoding="utf-8") as f:
+        content = f.read()
+    # Generated tracker configs use OpenCV's non-standard YAML directive,
+    # which PyYAML cannot parse. The remaining document is regular YAML.
+    if content.startswith("%YAML:1.0"):
+        content = content.split("\n", 1)[1]
+    return yaml.safe_load(content)
     
 def pjoin(*args):
     """Join one or more path components intelligently."""

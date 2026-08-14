@@ -708,9 +708,14 @@ namespace summer
 		memset(normalizedFG_.ptr<float>(), 0, centersIDs_.size() * numBins_ * numBins_ * numBins_ * sizeof(float));
 		memset(normalizedBG_.ptr<float>(), 0, centersIDs_.size() * numBins_ * numBins_ * numBins_ * sizeof(float));
 
-		parallel_for_(cv::Range(0, threads), Parallel_For_buildLocalHistograms(frame, mask, centersIDs_, radius_, numBins_, notNormalizedFG_, notNormalizedBG_, sumsFB, model_->getModelID(), threads));
-
-		parallel_for_(cv::Range(0, threads), Parallel_For_mergeLocalHistograms(notNormalizedFG_, notNormalizedBG_, normalizedFG_, normalizedBG_, initialized, centersIDs_, sumsFB, afg, abg, threads));
+		Parallel_For_buildLocalHistograms buildHistograms(
+			frame, mask, centersIDs_, radius_, numBins_, notNormalizedFG_, notNormalizedBG_,
+			sumsFB, model_->getModelID(), threads);
+		buildHistograms(cv::Range(0, threads));
+		Parallel_For_mergeLocalHistograms mergeHistograms(
+			notNormalizedFG_, notNormalizedBG_, normalizedFG_, normalizedBG_, initialized,
+			centersIDs_, sumsFB, afg, abg, threads);
+		mergeHistograms(cv::Range(0, threads));
 	}
 
 	void TCLCHistograms::updateCentersAndIds(const cv::Mat &mask, const cv::Mat &depth, const cv::Matx33f &K, float zNear, float zFar, int level)

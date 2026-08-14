@@ -25,7 +25,7 @@ def glsl2cppF(glsl_file):
 		for line in lines:
 			line = line.strip('\n')
 			str = strfy(line)
-			print str
+			print(str)
 			f.write(str+'\n')
 
 def glsl2cpp(glsl_file, content):

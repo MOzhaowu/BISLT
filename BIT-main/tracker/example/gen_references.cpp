@@ -21,7 +21,7 @@ using LSC = LocalStorageCommunicator;
 SummerConfigs LoadSummerConfig(const std::string &yml)
 {
 	std::string root = LoadSingleInfo<string>(yml, "root");
-	std::string cmc_root = root + LoadSingleInfo<string>(yml, "cmcRoot");
+	std::string cmc_root = root + LoadSingleInfo<string>(yml, "cmc");
 	std::string gts_file = LoadSingleInfo<string>(yml, "gt");
 	std::string imgs_dir = LoadSingleInfo<string>(yml, "frames");
 	string model_name = LoadSingleInfo<string>(yml, "modelName");
