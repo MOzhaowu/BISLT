@@ -1,6 +1,9 @@
 #include <iostream>
 #include <chrono>
 #include <thread>
+#include <fstream>
+#include <iomanip>
+#include <limits>
 
 #include "opencv2/opencv.hpp"
 #include "glog/logging.h"
@@ -99,6 +102,17 @@ bool DifferEnough(const Eigen::Vector3f &newView, const std::vector<Eigen::Vecto
 			return false;
 	}
 	return true;
+}
+
+float MinViewAngle(const Eigen::Vector3f &newView, const std::vector<Eigen::Vector3f> &oldViews)
+{
+	if (newView.norm() == 0.0f || oldViews.empty())
+		return std::numeric_limits<float>::quiet_NaN();
+
+	float minimum = 180.0f;
+	for (const auto &oldView : oldViews)
+		minimum = std::min(minimum, calculateAngle(newView, oldView));
+	return minimum;
 }
 
 int main(int argc, char *argv[])
@@ -233,6 +247,12 @@ int main(int argc, char *argv[])
 
 	std::string resultSaveRoot = MakeTrackingResultDir("../result", trackerType, sc.model_name, "-", g_mkdir);
 
+	std::ofstream diagnostics(resultSaveRoot + "/diagnostics_cpp.csv", std::ios::out | std::ios::trunc);
+	CHECK(diagnostics.is_open()) << "Can not open diagnostics output in " << resultSaveRoot;
+	diagnostics << "frame_index,model_version_used,model_version_after,model_reloaded_after_frame,tracking_time_ms,data_group_valid,"
+				<< "roi_x,roi_y,roi_width,roi_height,view_x,view_y,view_z,min_view_angle_deg,"
+				<< "is_reference,view_candidate,sent_to_python\n";
+	diagnostics << std::fixed << std::setprecision(8);
 	for (auto ip : ips)
 	{
 
@@ -244,9 +264,14 @@ int main(int argc, char *argv[])
 		psd->frame = frame;
 		psd->gt = gts[index];
 		psd->poseScale = poseScale;
+		int modelVersionUsed = cur_model_deformed_nums;
 
 		PushData(psd);
+		auto trackingStart = std::chrono::steady_clock::now();
 		ProcessData();
+		float trackingTimeMs = std::chrono::duration<float, std::milli>(
+										std::chrono::steady_clock::now() - trackingStart)
+										.count();
 
 		ProcessResult *pRes = GetResult();
 		SaveTrackingResult(resultSaveRoot, pRes->trackingResult);
@@ -256,26 +281,43 @@ int main(int argc, char *argv[])
 		poses.push_back(pRes->trackingResult->pose);
 
 		Eigen::Vector3f view = pRes->trackingResult->dataGroup.view;
-		DifferEnough(view, templateViews, angleThresh); // just for test
+		float minViewAngle = MinViewAngle(view, templateViews);
+		bool isReference = communicator->InRefers(index);
+		bool viewCandidate = DifferEnough(view, templateViews, angleThresh);
+		bool modelReloadedAfterFrame = false;
+		bool sentToPython = false;
 
 		VLOG(0) << "sented " << communicator->data_nums_sent_2_py() << " " << communicator->expected_data_nums_sent_2_py_up_2_current(cur_model_deformed_nums);
 
 		if (cur_model_deformed_nums < sc.max_model_deformed_nums)
 		{
 			if (GetModelFromPy(communicator, cur_model_deformed_nums))
+			{
 				UpdateModel(communicator->newest_model_path(), scaled_model_path, bbx.longestSide * 1.05);
+				modelReloadedAfterFrame = true;
+			}
 
-			if (!communicator->InRefers(index) &&
-				DifferEnough(view, templateViews, angleThresh))
+			if (!isReference && viewCandidate)
 			{
 				VLOG(0) << "writed index is " << index;
 				communicator->DataNumsSent2PyAddOne();
 				communicator->SentDatas2Py(pRes->trackingResult, index);
 				templateViews.push_back(view);
+				sentToPython = true;
 			}
 		}
 
 		uchar key = cv::waitKey(1);
+
+		const cv::Rect &roi = pRes->trackingResult->dataGroup.originRoi;
+		diagnostics << index << "," << modelVersionUsed << "," << cur_model_deformed_nums << ","
+					<< modelReloadedAfterFrame << ","
+					<< trackingTimeMs << "," << pRes->trackingResult->dataGroup.valid << ","
+					<< roi.x << "," << roi.y << ","
+					<< roi.width << "," << roi.height << "," << view[0] << "," << view[1] << ","
+					<< view[2] << "," << minViewAngle << "," << isReference << ","
+					<< viewCandidate << "," << sentToPython << "\n";
+		diagnostics.flush();
 
 		if (27 == key)
 		{

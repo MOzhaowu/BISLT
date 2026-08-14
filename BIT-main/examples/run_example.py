@@ -3,6 +3,8 @@ Demo deform.
 Deform template mesh based on input silhouettes and camera pose
 """
 import time
+import json
+import shutil
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -165,6 +167,109 @@ def neg_iou_loss(predict, target):
 
     return 1. - (intersect / union).sum() / intersect.nelement()
 
+def soft_iou_loss(predict, target):
+    dims = tuple(range(predict.ndimension())[1:])
+    intersect = (predict * target).sum(dims)
+    union = (predict + target - predict * target).sum(dims) + 1e-6
+    return 1. - (intersect / union).mean()
+
+
+@torch.no_grad()
+def evaluate_model_gate_metrics(
+    model, masks, poses, intrinsics, transform, lighting, rasterizer,
+    rotation_delta_deg, translation_delta,
+):
+    if len(masks) == 0:
+        return None
+
+    device = model.vertices.device
+    poses = poses.to(device=device, dtype=torch.float32)
+    intrinsics = intrinsics.to(device=device, dtype=torch.float32)
+    targets = torch.from_numpy(masks).to(device=device, dtype=torch.float32)[:, 3]
+
+    def render_losses(eval_poses, eval_intrinsics, eval_targets):
+        transform.set_K_list(eval_intrinsics)
+        transform.set_T(eval_poses)
+        mesh, _, _ = model(len(eval_poses))
+        predictions = rasterizer(transform(lighting(mesh)))[:, 3]
+        dims = tuple(range(1, predictions.ndimension()))
+        intersection = (predictions * eval_targets).sum(dims)
+        union = (
+            predictions + eval_targets - predictions * eval_targets
+        ).sum(dims) + 1e-6
+        return 1.0 - intersection / union
+
+    nominal_losses = render_losses(poses, intrinsics, targets)
+    angle = np.deg2rad(rotation_delta_deg)
+    c, s = float(np.cos(angle)), float(np.sin(angle))
+    deltas = []
+    for axis in range(3):
+        for sign in (-1.0, 1.0):
+            delta = torch.eye(4, device=device, dtype=torch.float32)
+            i, j = (1, 2) if axis == 0 else ((0, 2) if axis == 1 else (0, 1))
+            signed_s = sign * s
+            delta[i, i], delta[j, j] = c, c
+            delta[i, j], delta[j, i] = -signed_s, signed_s
+            deltas.append(delta)
+    for axis in range(3):
+        for sign in (-1.0, 1.0):
+            delta = torch.eye(4, device=device, dtype=torch.float32)
+            delta[axis, 3] = sign * translation_delta
+            deltas.append(delta)
+
+    perturbations = torch.stack(deltas)
+    perturbed_loss_columns = []
+    for delta in perturbations:
+        perturbed_poses = torch.matmul(delta[None, :, :], poses)
+        perturbed_loss_columns.append(
+            render_losses(perturbed_poses, intrinsics, targets)
+        )
+    perturbed_losses = torch.stack(perturbed_loss_columns, dim=1)
+
+    best_perturbed_losses = perturbed_losses.min(dim=1).values
+    pose_correction_gain = torch.clamp(
+        nominal_losses - best_perturbed_losses, min=0.0
+    )
+    return {
+        'mean_iou_loss': float(nominal_losses.mean().item()),
+        'temporal_std': float(nominal_losses.std(unbiased=False).item()),
+        'pose_inconsistency': float(pose_correction_gain.mean().item()),
+        'uncertainty': float(perturbed_losses.std(dim=1, unbiased=False).mean().item()),
+        'per_frame_iou_loss': nominal_losses.cpu().tolist(),
+    }
+
+
+def publish_mesh_atomic(mesh, final_path):
+    staging_path = os.path.join(
+        os.path.dirname(os.path.dirname(final_path)),
+        '.publish_{}_{}.tmp.obj'.format(os.getpid(), os.path.basename(final_path)),
+    )
+    try:
+        mesh.save_obj(staging_path, save_texture=False)
+        os.replace(staging_path, final_path)
+    finally:
+        if os.path.exists(staging_path):
+            os.remove(staging_path)
+
+
+def publish_file_atomic(source_path, final_path):
+    staging_path = os.path.join(
+        os.path.dirname(os.path.dirname(final_path)),
+        '.publish_{}_{}.tmp.obj'.format(os.getpid(), os.path.basename(final_path)),
+    )
+    try:
+        shutil.copyfile(source_path, staging_path)
+        os.replace(staging_path, final_path)
+    finally:
+        if os.path.exists(staging_path):
+            os.remove(staging_path)
+
+
+def append_jsonl(path, record):
+    with open(path, 'a') as stream:
+        stream.write(json.dumps(record, sort_keys=True) + '\n')
+
+
 def save_obj_file(vertices, faces, file_path):
     with open(file_path, 'w') as f:
         f.write(f"#coarse_50.obj\n# \n \n")
@@ -196,6 +301,28 @@ def main():
     configs = su.LoadConfigSafety(config_file = summer_config_file)
     print("output_dir: ", configs['output_dir'])
     os.makedirs(configs['output_dir'], exist_ok=True)
+    validation_config = configs.get('model_validation', {})
+    validation_enabled = bool(validation_config.get('enabled', True))
+    validation_frames = int(validation_config.get('validation_frames', 1))
+    validation_min_improvement = float(validation_config.get('min_improvement', 0.01))
+    validation_weights = validation_config.get('weights', {})
+    validation_iou_weight = float(validation_weights.get('iou', 1.0))
+    validation_pose_weight = float(validation_weights.get('pose_consistency', 0.25))
+    validation_temporal_weight = float(validation_weights.get('temporal_stability', 0.25))
+    validation_uncertainty_weight = float(validation_weights.get('uncertainty', 0.25))
+    validation_rotation_delta_deg = float(validation_config.get('rotation_delta_deg', 2.0))
+    validation_translation_delta = float(validation_config.get('translation_delta', 0.005))
+    validation_max_iou_regression = float(validation_config.get('max_iou_regression', 0.005))
+    registry_path = os.path.join(
+        os.path.dirname(configs['output_dir']), 'model_registry.jsonl'
+    )
+    candidate_dir = os.path.join(
+        os.path.dirname(configs['output_dir']), 'model_candidates'
+    )
+    os.makedirs(candidate_dir, exist_ok=True)
+    with open(registry_path, 'w'):
+        pass
+    print("model_registry: ", registry_path)
     
 
     prepare_start_time = time.time()  
@@ -204,6 +331,7 @@ def main():
     render_size = configs['renderer_img_size']
     img_nums = su.GenerateArray(first_num=configs['reference_imgs_nums'], second_num=configs['estimated_imgs_nums'], len =100) 
     cur_model_deformed_nums = 0
+    stable_geometry_version = 0
     max_model_deformed_nums = configs['max_model_deformed_nums'] 
     iteration_nums = configs['iteration_nums_in_each_deform']
     
@@ -216,7 +344,7 @@ def main():
     img_w = configs['width']
 
     # SAM
-    sam_checkpoint = pjoin('checkpoints', configs['sam']['checkpoint'])
+    sam_checkpoint = pjoin(pp_dir, '..', 'checkpoints', configs['sam']['checkpoint'])
     model_type     = configs['sam']['model']
     device         = configs['sam']['device']
     sam            = sam_model_registry[model_type](checkpoint=sam_checkpoint)
@@ -231,11 +359,19 @@ def main():
     lsc = communication.LocalStorageCommunication(root = configs['communication']['root'], max_count = img_nums[0], from_sphere = from_sphere)
     # tracker and part of scale
     # here call the eg_BIT
-    process = subprocess.Popen([configs['tracker'], summer_config_file], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+    process = subprocess.Popen([configs['tracker'], summer_config_file])
 
     loop_nums = 0
         
     while(True):
+        return_code = process.poll()
+        if return_code is not None:
+            if return_code == 0:
+                return
+            raise RuntimeError(
+                f"Tracker process exited before completion with code {return_code}"
+            )
+
         status = lsc.Scan(sleep_time = 2) # We sleep here to give the scanner time to scan the local folder, so that the C++ and Python can communicate with each other.
         lsc.set_status(status)
         
@@ -272,46 +408,159 @@ def main():
             probs_npy = ut.Mats2Npy(segmented_masks.copy()).astype('float32')/255
             cnfds_npy = ut.Mats2Npy(cnfds.copy()).astype('float32')/255
 
-            Ts  = torch.from_numpy(dataGroups.Ts_)
-            Ks  = torch.from_numpy(dataGroups.Ks_).to(dtype=torch.float32)
-            if cur_model_deformed_nums > 0:
-                model = Model(save_obj_path).cuda()
+            Ts_all = torch.from_numpy(dataGroups.Ts_)
+            Ks_all = torch.from_numpy(dataGroups.Ks_).to(dtype=torch.float32)
+            candidate_version = cur_model_deformed_nums + 1
+            stable_model_path = save_obj_path if cur_model_deformed_nums > 0 else None
+
+            all_indices = list(range(len(probs_npy)))
+            held_out_count = 0
+            if validation_enabled and stable_model_path and len(all_indices) >= 3:
+                held_out_count = min(validation_frames, len(all_indices) - 2)
+            validation_indices = (
+                all_indices[-held_out_count:] if held_out_count else []
+            )
+            training_indices = (
+                all_indices[:-held_out_count] if held_out_count else all_indices
+            )
+
+            if stable_model_path:
+                model = Model(stable_model_path).cuda()
 
             optimizer = torch.optim.Adam(model.parameters(), 0.01, betas=(0.5, 0.99))
             transform.set_img_size(max(img_h, img_w))
-            transform.set_K_list(Ks)
-            transform.set_T(Ts)
+            training_poses = Ts_all[training_indices]
+            training_intrinsics = Ks_all[training_indices]
+            training_masks = probs_npy[training_indices]
+            transform.set_K_list(training_intrinsics)
+            transform.set_T(training_poses)
 
             loop = tqdm.tqdm(list(range(0, iteration_nums)))
-            batch_size = len(probs_npy)    
-            cur_model_deformed_nums += 1
+            batch_size = len(training_masks)
+            cur_model_deformed_nums = candidate_version
+            images_gt = torch.from_numpy(training_masks).cuda()
 
             print("begin to deform model")
             for i in loop:
-                images_gt = torch.from_numpy(probs_npy).cuda()
-                mesh, laplacian_loss, flatten_loss = model(batch_size)     
+                mesh, laplacian_loss, flatten_loss = model(batch_size)
 
                 # render
                 mesh = lighting(mesh)
                 mesh = transform(mesh)
-                images_pred = rasterizer(mesh)    
+                images_pred = rasterizer(mesh)
                 loss = neg_iou_loss(images_pred[:, 3], images_gt[:, 3]) + 0.1 * laplacian_loss
-                
+
                 loop.set_description('Loss: %.4f' % (loss.item()))
                 optimizer.zero_grad()
                 loss.backward()
-                optimizer.step()            
+                optimizer.step()
                 intermediate_result = images_pred.detach().cpu().numpy()[0].transpose((1, 2, 0))
-                intermediate_result_flipped = cv2.flip(intermediate_result, 0) 
+                intermediate_result_flipped = cv2.flip(intermediate_result, 0)
                 cv2.imshow("intermediate_result", intermediate_result_flipped)
                 cv2.waitKey(1)
                 loop_nums = loop_nums + 1
-                
-            save_obj_path = os.path.join(configs['output_dir'], '_realtime_' + str(cur_model_deformed_nums)+'.obj')
-            print("save_obj_path****", save_obj_path)
-            model(1)[0].save_obj(save_obj_path, save_texture=False)
+
+            candidate_mesh = model(1)[0]
+            candidate_path = os.path.join(
+                candidate_dir, 'candidate_v{:03d}.obj'.format(candidate_version)
+            )
+            candidate_mesh.save_obj(candidate_path, save_texture=False)
+
+            accepted = True
+            stable_validation_loss = None
+            candidate_validation_loss = None
+            improvement = None
+            gate_score = None
+            stable_gate_metrics = None
+            candidate_gate_metrics = None
+            reason = 'initial_model'
+            stable_model = None
+            base_stable_geometry_version = stable_geometry_version
+            if validation_indices:
+                validation_poses = Ts_all[validation_indices]
+                validation_intrinsics = Ks_all[validation_indices]
+                validation_masks = probs_npy[validation_indices]
+                candidate_gate_metrics = evaluate_model_gate_metrics(
+                    model, validation_masks, validation_poses,
+                    validation_intrinsics, transform, lighting, rasterizer,
+                    validation_rotation_delta_deg, validation_translation_delta
+                )
+                stable_model = Model(stable_model_path).cuda()
+                stable_gate_metrics = evaluate_model_gate_metrics(
+                    stable_model, validation_masks, validation_poses,
+                    validation_intrinsics, transform, lighting, rasterizer,
+                    validation_rotation_delta_deg, validation_translation_delta
+                )
+                candidate_validation_loss = candidate_gate_metrics['mean_iou_loss']
+                stable_validation_loss = stable_gate_metrics['mean_iou_loss']
+                improvement = stable_validation_loss - candidate_validation_loss
+                pose_gain = stable_gate_metrics['pose_inconsistency'] - candidate_gate_metrics['pose_inconsistency']
+                temporal_gain = stable_gate_metrics['temporal_std'] - candidate_gate_metrics['temporal_std']
+                uncertainty_gain = stable_gate_metrics['uncertainty'] - candidate_gate_metrics['uncertainty']
+                gate_score = (
+                    validation_iou_weight * improvement
+                    + validation_pose_weight * pose_gain
+                    + validation_temporal_weight * temporal_gain
+                    + validation_uncertainty_weight * uncertainty_gain
+                )
+                iou_guard_passed = candidate_validation_loss <= (
+                    stable_validation_loss + validation_max_iou_regression
+                )
+                accepted = gate_score >= validation_min_improvement and iou_guard_passed
+                if accepted:
+                    reason = 'multi_metric_gate_passed'
+                elif not iou_guard_passed:
+                    reason = 'iou_regression_guard'
+                else:
+                    reason = 'multi_metric_score_below_threshold'
+
+            published_path = os.path.join(
+                configs['output_dir'],
+                '_realtime_' + str(candidate_version) + '.obj'
+            )
+            if accepted:
+                publish_mesh_atomic(candidate_mesh, published_path)
+            else:
+                publish_file_atomic(stable_model_path, published_path)
+                model = stable_model
+            if accepted:
+                stable_geometry_version = candidate_version
+
+            save_obj_path = published_path
+            decision = {
+                'version': candidate_version,
+                'accepted': accepted,
+                'reason': reason,
+                'base_stable_geometry_version': base_stable_geometry_version,
+                'stable_geometry_version': stable_geometry_version,
+                'stable_validation_iou_loss': stable_validation_loss,
+                'candidate_validation_iou_loss': candidate_validation_loss,
+                'improvement': improvement,
+                'gate_score': gate_score,
+                'minimum_improvement': validation_min_improvement,
+                'stable_gate_metrics': stable_gate_metrics,
+                'candidate_gate_metrics': candidate_gate_metrics,
+                'gate_weights': {
+                    'iou': validation_iou_weight,
+                    'pose_consistency': validation_pose_weight,
+                    'temporal_stability': validation_temporal_weight,
+                    'uncertainty': validation_uncertainty_weight,
+                },
+                'rotation_delta_deg': validation_rotation_delta_deg,
+                'translation_delta': validation_translation_delta,
+                'max_iou_regression': validation_max_iou_regression,
+                'training_indices': training_indices,
+                'validation_indices': validation_indices,
+                'candidate_path': candidate_path,
+                'published_path': published_path,
+            }
+            append_jsonl(registry_path, decision)
+            print("model_validation: ", json.dumps(decision, sort_keys=True))
             
             if cur_model_deformed_nums == max_model_deformed_nums:
+                return_code = process.wait()
+                if return_code != 0:
+                    raise RuntimeError(f"Tracker process exited with code {return_code}")
                 return
 
     
