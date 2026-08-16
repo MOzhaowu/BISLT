@@ -9,6 +9,9 @@ from collections import defaultdict
 from pathlib import Path
 
 import numpy as np
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 
 from evaluate_baseline import load_poses, project_rotation
 
@@ -79,6 +82,8 @@ def main():
         "data_group_valid", "roi_x", "roi_y", "roi_width",
         "roi_height", "view_x", "view_y", "view_z", "min_view_angle_deg",
         "is_reference", "view_candidate", "sent_to_python",
+        "contour_residual", "histogram_separation", "contour_samples",
+
         "rotation_error_deg", "translation_error_mm", "success_5deg_50mm",
     ]
 
@@ -130,6 +135,44 @@ def main():
             ])),
         }
 
+    def numeric(name):
+        return np.array([
+            float(row[name]) if str(row.get(name, "")).strip() else np.nan
+            for row in rows
+        ], dtype=float)
+
+    frame_axis = numeric("frame_index")
+    rotation = numeric("rotation_error_deg")
+    translation = numeric("translation_error_mm")
+    residual = numeric("contour_residual")
+    separation = numeric("histogram_separation")
+    valid_signals = np.isfinite(residual) & np.isfinite(separation)
+    failure_mask = (rotation > 5.0) | (translation > 50.0)
+    failure_modes = {
+        "total_failure_frames": int(np.sum(failure_mask)),
+        "high_contour_residual": int(np.sum(failure_mask & valid_signals & (residual >= np.nanquantile(residual, 0.75)))) if np.any(valid_signals) else 0,
+        "low_histogram_separation": int(np.sum(failure_mask & valid_signals & (separation <= np.nanquantile(separation, 0.25)))) if np.any(valid_signals) else 0,
+        "after_model_reload": sum(
+            bool(failure_mask[i]) and as_bool(row.get("model_reloaded_after_frame", ""))
+            for i, row in enumerate(rows)
+        ),
+    }
+
+    figure, axes = plt.subplots(3, 1, figsize=(11, 8), sharex=True)
+    axes[0].plot(frame_axis, rotation, label="rotation (deg)")
+    axes[0].plot(frame_axis, translation, label="translation (mm)")
+    axes[0].axhline(5.0, color="tab:red", linestyle="--", linewidth=0.8)
+    axes[0].axhline(50.0, color="tab:orange", linestyle="--", linewidth=0.8)
+    axes[0].legend(loc="upper right")
+    axes[1].plot(frame_axis, residual, color="tab:red", label="contour residual")
+    axes[1].legend(loc="upper right")
+    axes[2].plot(frame_axis, separation, color="tab:green", label="histogram separation")
+    axes[2].legend(loc="upper right")
+    axes[2].set_xlabel("frame")
+    figure.tight_layout()
+    figure.savefig(args.run_dir / "diagnostic_timeline.png", dpi=160)
+    plt.close(figure)
+
     summary = {
         "schema_version": 1,
         "frames": len(rows),
@@ -142,6 +185,14 @@ def main():
         "keyframes_sent_to_python": sum(
             as_bool(row.get("sent_to_python", "")) for row in rows
         ),
+        "diagnostic_signals": {
+            "contour_residual_mean": float(np.nanmean(residual)) if np.any(valid_signals) else None,
+            "histogram_separation_mean": float(np.nanmean(separation)) if np.any(valid_signals) else None,
+            "valid_frames": int(np.sum(valid_signals)),
+        },
+        "failure_modes": failure_modes,
+        "timeline_plot": "diagnostic_timeline.png",
+
         "per_geometry_version": per_version,
     }
     (args.run_dir / "diagnostic_summary.json").write_text(

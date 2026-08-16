@@ -251,7 +251,7 @@ int main(int argc, char *argv[])
 	CHECK(diagnostics.is_open()) << "Can not open diagnostics output in " << resultSaveRoot;
 	diagnostics << "frame_index,model_version_used,model_version_after,model_reloaded_after_frame,tracking_time_ms,data_group_valid,"
 				<< "roi_x,roi_y,roi_width,roi_height,view_x,view_y,view_z,min_view_angle_deg,"
-				<< "is_reference,view_candidate,sent_to_python\n";
+				<< "is_reference,view_candidate,sent_to_python,contour_residual,histogram_separation,contour_samples\n";
 	diagnostics << std::fixed << std::setprecision(8);
 	for (auto ip : ips)
 	{
@@ -316,7 +316,10 @@ int main(int argc, char *argv[])
 					<< roi.x << "," << roi.y << ","
 					<< roi.width << "," << roi.height << "," << view[0] << "," << view[1] << ","
 					<< view[2] << "," << minViewAngle << "," << isReference << ","
-					<< viewCandidate << "," << sentToPython << "\n";
+					<< viewCandidate << "," << sentToPython << ","
+					<< pRes->trackingResult->dataGroup.contour_residual << ","
+					<< pRes->trackingResult->dataGroup.histogram_separation << ","
+					<< pRes->trackingResult->dataGroup.contour_samples << "\n";
 		diagnostics.flush();
 
 		if (27 == key)

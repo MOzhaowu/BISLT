@@ -169,6 +169,26 @@ void SummerTracker::Estimate()
 	DataGroup dataGroup;
 	dataGroup.valid = false;
 	dataGroup = ComDataGroup(frameDeepCopy, probDeepCopy);
+	if (probDeepCopy.type() == CV_8UC1 && !probDeepCopy.empty())
+	{
+		double residualSum = 0.0;
+		double separationSum = 0.0;
+		int sampleCount = 0;
+		for (int row = 0; row < probDeepCopy.rows; ++row)
+		{
+			const uchar *values = probDeepCopy.ptr<uchar>(row);
+			for (int col = 0; col < probDeepCopy.cols; ++col)
+			{
+				const double foreground = values[col] / 255.0;
+				residualSum += -std::log(std::max(1e-7, std::max(foreground, 1.0 - foreground)));
+				separationSum += std::abs(2.0 * foreground - 1.0);
+				++sampleCount;
+			}
+		}
+		dataGroup.contour_residual = residualSum / sampleCount;
+		dataGroup.histogram_separation = separationSum / sampleCount;
+		dataGroup.contour_samples = sampleCount;
+	}
 	SetTrackingResult(ResultType::kResDataGroup, dataGroup);
 
 	cv::Mat result = renderer_->DrawResultOverlay(std::vector<summer::Model *>(m_objects.begin(), m_objects.end()), currData->frame, true);

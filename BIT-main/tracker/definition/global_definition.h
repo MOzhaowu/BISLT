@@ -62,6 +62,9 @@ struct DataGroup
 	int targetWidth{0};
 	int targetHeight{0};
 	Eigen::Vector3f view{0,0,0};
+	float contour_residual{NAN};
+	float histogram_separation{NAN};
+	int contour_samples{0};
 };
 
 enum DetectorType
