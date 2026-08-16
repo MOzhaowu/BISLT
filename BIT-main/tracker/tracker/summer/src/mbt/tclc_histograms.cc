@@ -786,40 +786,53 @@ namespace summer
 
 	void TCLCHistograms::filterHistogramCenters(int numHistograms, float offset)
 	{
-		int offset2 = static_cast<int>(offset * offset);
+		const vector<Point3i> input = centersIDs_;
+		vector<Point3i> selected;
+		vector<Point3i> remaining;
+		vector<Point3i> next;
+		selected.reserve(input.size());
+		remaining.reserve(input.size());
+		next.reserve(input.size());
 
-		vector<Point3i> res;
-
-		do
-		{
-			res.clear();
-
-			while (centersIDs_.size() > 0)
+		auto selectAtOffset = [&](int candidateOffset) {
+			const int offset2 = candidateOffset * candidateOffset;
+			selected.clear();
+			remaining.assign(input.begin(), input.end());
+			while (!remaining.empty())
 			{
-				Point3i center = centersIDs_[0];
-				vector<Point3i> tmp;
-				res.push_back(center);
-				for (int c2 = 1; c2 < centersIDs_.size(); c2++)
+				const Point3i center = remaining[0];
+				next.clear();
+				selected.push_back(center);
+				if (selected.size() > static_cast<size_t>(numHistograms))
+					return false;
+				for (size_t i = 1; i < remaining.size(); ++i)
 				{
-					Point3i center2 = centersIDs_[c2];
-					int dx = center.x - center2.x;
-					int dy = center.y - center2.y;
-					int d = dx * dx + dy * dy;
-
-					if (d >= offset2)
-					{
-						tmp.push_back(center2);
-					}
+					const Point3i center2 = remaining[i];
+					const int dx = center.x - center2.x;
+					const int dy = center.y - center2.y;
+					if (dx * dx + dy * dy >= offset2)
+						next.push_back(center2);
 				}
-				centersIDs_ = tmp;
+				remaining.swap(next);
 			}
-			centersIDs_ = res;
+			return true;
+		};
 
-			offset += 1.0f;
-			offset2 = offset * offset;
-		} while (res.size() > numHistograms);
-
-		offset_ = offset;
+		int low = std::max(1, static_cast<int>(std::ceil(offset)));
+		int high = low;
+		while (!selectAtOffset(high))
+			high *= 2;
+		while (low < high)
+		{
+			const int mid = low + (high - low) / 2;
+			if (selectAtOffset(mid))
+				high = mid;
+			else
+				low = mid + 1;
+		}
+		selectAtOffset(low);
+		centersIDs_ = selected;
+		offset_ = static_cast<float>(low);
 	}
 
 	Mat TCLCHistograms::getLocalForegroundHistograms()
