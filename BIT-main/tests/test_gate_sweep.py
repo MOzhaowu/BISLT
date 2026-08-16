@@ -27,6 +27,7 @@ class GateSweepTest(unittest.TestCase):
         self.assertFalse(rows[1]['model_validation']['enabled'])
         self.assertEqual(rows[2]['model_validation']['weights']['pose_consistency'], 0.0)
         self.assertEqual(rows[3]['model_validation']['weights']['pose_consistency'], 0.25)
+        self.assertEqual(rows[3]['model_validation']['validation_frames'], 3)
 
 
 if __name__ == '__main__':

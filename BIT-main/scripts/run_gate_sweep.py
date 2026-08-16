@@ -30,6 +30,7 @@ PRESETS = {
         'consume_once': True,
         'model_validation': {
             'enabled': True,
+            'validation_frames': 3,
             'weights': {'iou': 1.0, 'pose_consistency': 0.25,
                         'temporal_stability': 0.25, 'uncertainty': 0.25},
         },
