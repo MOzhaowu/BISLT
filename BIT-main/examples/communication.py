@@ -69,7 +69,7 @@ class LocalStorageCommunication:
 	def __init__(self, root, rgb_folder = "img", prob_folder = "prob", mask_folder = "mask", \
                        poses_folder = "pose", K_folder = "K", \
                        origin_roi_folder  = "originRoi", target_roi_folder = "targetRoi", target_size_folder = "targetSize", \
-                       max_count = 30, from_sphere = False) -> None:
+                       max_count = 30, from_sphere = False, consume_once = True) -> None:
 		self.root_ = root
         
 		self.dataGroups_ = DataGroups()
@@ -124,6 +124,7 @@ class LocalStorageCommunication:
 		self.max_count_ = max_count
 		self.curr_count_ = 0
 		self.processed_count_ = 0
+		self.consume_once_ = consume_once
         
 		if from_sphere == True:
 			self.max_count_ = 1
@@ -170,7 +171,9 @@ class LocalStorageCommunication:
 		self.target_size_files_ += new_target_size_files
 
 		self.curr_count_ = len(self.K_files_)
-		return (self.curr_count_ - self.processed_count_ >= self.max_count_)
+		if self.consume_once_:
+			return self.curr_count_ - self.processed_count_ >= self.max_count_
+		return self.curr_count_ >= self.max_count_
 
 	def set_status(self, status):
 		self.status_ = status
@@ -189,9 +192,12 @@ class LocalStorageCommunication:
 		target_rois = []
 		target_sizes = []
 
-		# Consume each C++ keyframe exactly once.
-		begin = self.processed_count_
-		end = begin + self.max_count_
+		if self.consume_once_:
+			begin = self.processed_count_
+			end = begin + self.max_count_
+		else:
+			begin = self.curr_count_ - self.max_count_
+			end = self.curr_count_
 
 		# RGB
 		newest_rgb_files = self.rgb_files_[begin:end]
@@ -268,7 +274,8 @@ class LocalStorageCommunication:
 					target_sizes.append(line_data)
 		target_sizes = np.stack(target_sizes, axis = 0)
 
-		self.processed_count_ = end
+		if self.consume_once_:
+			self.processed_count_ = end
 		return DataGroups(rgbs=imgs, probs=probs, masks=masks, Ts=poses, Ks=Ks, origin_rois=origin_rois, target_rois=target_rois, target_sizes=target_sizes)
 
 

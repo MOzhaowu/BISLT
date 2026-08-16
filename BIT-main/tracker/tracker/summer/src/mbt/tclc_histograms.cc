@@ -26,8 +26,11 @@ namespace summer
 		normalizedFG_ = Mat::zeros(this->numHistograms_, numBins_ * numBins_ * numBins_, CV_32FC1);
 		normalizedBG_ = Mat::zeros(this->numHistograms_, numBins_ * numBins_ * numBins_, CV_32FC1);
 
-		notNormalizedFG_ = Mat::zeros(300, numBins_ * numBins_ * numBins_, CV_32FC1);
-		notNormalizedBG_ = Mat::zeros(300, numBins_ * numBins_ * numBins_, CV_32FC1);
+		// update() clears one row for every active histogram center. The old
+		// fixed capacity of 300 corrupted the heap whenever a generated model
+		// produced more than 300 centers (up to numHistograms_).
+		notNormalizedFG_ = Mat::zeros(this->numHistograms_, numBins_ * numBins_ * numBins_, CV_32FC1);
+		notNormalizedBG_ = Mat::zeros(this->numHistograms_, numBins_ * numBins_ * numBins_, CV_32FC1);
 
 		sumsFB = Mat::zeros(this->numHistograms_, 1, CV_32FC2);
 

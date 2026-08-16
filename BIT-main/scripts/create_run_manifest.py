@@ -63,6 +63,8 @@ def main():
         "experiment": {
             "run_tag": os.environ.get("BIT_RUN_TAG"),
             "config_glob": os.environ.get("BIT_CONFIG_GLOB"),
+            "consume_once": os.environ.get("BIT_CONSUME_ONCE", "1").lower()
+            not in ("0", "false", "no"),
             "model_validation_override": json.loads(
                 os.environ.get("BIT_MODEL_VALIDATION_JSON", "null")
             ),

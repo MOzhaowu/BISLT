@@ -69,7 +69,7 @@ for config in "${configs[@]}"; do
     printf '%s\n' "$((end_epoch - start_epoch))" >"$run_dir/elapsed_seconds.txt"
     printf '%s\n' "$status" >"$run_dir/exit_code.txt"
 
-    result_relative=$(grep -oE '\.\./result/Summer/[^[:space:]]+' "$run_dir/run.log" | head -1 || true)
+    result_relative=$(grep -oE '\.\./result/Summer/[^/[:space:]]+/[^/[:space:]]+' "$run_dir/run.log" | head -1 || true)
     if [ "$status" -eq 0 ] && [ -n "$result_relative" ] && [ -d "$project_dir/$result_relative" ]; then
         mkdir -p "$run_dir/raw"
         cp -a "$project_dir/$result_relative/." "$run_dir/raw/"
@@ -101,6 +101,7 @@ echo "Batch finished: completed=$completed failed=$failed total=$total"
 if find "$baseline_root" -name metrics.json -type f -print -quit 2>/dev/null | grep -q .; then
     mkdir -p "$baseline_root/summary"
     "$python_bin" scripts/aggregate_results.py "$baseline_root" \
+        --run-glob "${BIT_METRICS_GLOB:-**/run_[0-9]*/metrics.json}" \
         --output-dir "$baseline_root/summary" >"$baseline_root/summary/aggregate.log"
 fi
 test "$failed" -eq 0

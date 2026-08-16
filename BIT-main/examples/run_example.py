@@ -319,6 +319,7 @@ def main():
             validation_config, json.loads(validation_override)
         )
     validation_enabled = bool(validation_config.get('enabled', True))
+    consume_once = os.environ.get('BIT_CONSUME_ONCE', '1').lower() not in ('0', 'false', 'no')
     validation_frames = int(validation_config.get('validation_frames', 1))
     validation_min_improvement = float(validation_config.get('min_improvement', 0.01))
     validation_weights = validation_config.get('weights', {})
@@ -377,7 +378,10 @@ def main():
     save_index    = configs['save_index']
 
 	# cpp
-    lsc = communication.LocalStorageCommunication(root = configs['communication']['root'], max_count = img_nums[0], from_sphere = from_sphere)
+    lsc = communication.LocalStorageCommunication(
+        root=configs['communication']['root'], max_count=img_nums[0],
+        from_sphere=from_sphere, consume_once=consume_once,
+    )
     # tracker and part of scale
     # here call the eg_BIT
     process = subprocess.Popen([configs['tracker'], summer_config_file])
@@ -576,6 +580,7 @@ def main():
             save_obj_path = published_path
             decision = {
                 'version': candidate_version,
+                'consume_once': consume_once,
                 'accepted': accepted,
                 'reason': reason,
                 'base_stable_geometry_version': base_stable_geometry_version,

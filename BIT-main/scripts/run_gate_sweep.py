@@ -10,16 +10,29 @@ from pathlib import Path
 
 
 PRESETS = {
-    'baseline': {'enabled': False},
+    'original': {
+        'consume_once': False,
+        'model_validation': {'enabled': False},
+    },
+    'sync': {
+        'consume_once': True,
+        'model_validation': {'enabled': False},
+    },
     'iou': {
-        'enabled': True,
-        'weights': {'iou': 1.0, 'pose_consistency': 0.0,
-                    'temporal_stability': 0.0, 'uncertainty': 0.0},
+        'consume_once': True,
+        'model_validation': {
+            'enabled': True,
+            'weights': {'iou': 1.0, 'pose_consistency': 0.0,
+                        'temporal_stability': 0.0, 'uncertainty': 0.0},
+        },
     },
     'multi': {
-        'enabled': True,
-        'weights': {'iou': 1.0, 'pose_consistency': 0.25,
-                    'temporal_stability': 0.25, 'uncertainty': 0.25},
+        'consume_once': True,
+        'model_validation': {
+            'enabled': True,
+            'weights': {'iou': 1.0, 'pose_consistency': 0.25,
+                        'temporal_stability': 0.25, 'uncertainty': 0.25},
+        },
     },
 }
 
@@ -27,12 +40,14 @@ PRESETS = {
 def cases(args):
     for preset, threshold, seed in itertools.product(
             args.presets, args.thresholds, args.seeds):
-        config = dict(PRESETS[preset])
+        preset_config = PRESETS[preset]
+        config = dict(preset_config['model_validation'])
         config['min_improvement'] = threshold
         yield {
             'name': f'{preset}_t{threshold:g}_s{seed}',
             'preset': preset,
             'seed': seed,
+            'consume_once': preset_config['consume_once'],
             'model_validation': config,
         }
 
@@ -62,10 +77,12 @@ def main():
     for case in matrix:
         env = os.environ.copy()
         env['BIT_MODEL_VALIDATION_JSON'] = json.dumps(case['model_validation'])
+        env['BIT_CONSUME_ONCE'] = '1' if case['consume_once'] else '0'
         env['BIT_RANDOM_SEED'] = str(case['seed'])
         env['BIT_RUN_TAG'] = case['name']
         env['BIT_CONFIG_GLOB'] = args.config_glob
         env['BIT_BASELINE_ROOT'] = str(args.results_root.resolve())
+        env['BIT_METRICS_GLOB'] = '**/metrics.json'
         subprocess.run(['bash', 'scripts/run_moped_baseline.sh'], env=env, check=True)
     subprocess.run([
         os.environ.get('BIT_PYTHON', 'python3'), 'scripts/aggregate_results.py',
