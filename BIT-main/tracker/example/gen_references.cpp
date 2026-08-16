@@ -181,15 +181,17 @@ int main(int argc, char *argv[])
 			return -1;
 		}
 
+		psd->mask = cv::Mat();
 		if (dataset == "moped")
 		{
-			mask = cv::imread(masks[index]);
-			if (mask.empty())
+			if (index < static_cast<int>(masks.size()))
 			{
-				VLOG(0) << "End of frames or mask empty from path: " << masks[index];
-				return -1;
+				mask = cv::imread(masks[index]);
+				if (!mask.empty())
+					psd->mask = mask;
 			}
-			psd->mask = mask;
+			else
+				VLOG(0) << "No optional input mask for frame " << index;
 		}
 
 		psd->sourceId = 0;
