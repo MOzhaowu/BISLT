@@ -150,10 +150,12 @@ namespace summer
 			}
 		}
 
-		std::partial_sort(confidences.begin(), confidences.begin() + targetParts, confidences.end(),
-						  std::greater<std::pair<float, int>>());
+		const size_t selectedParts = std::min(
+			static_cast<size_t>(targetParts), confidences.size());
+		std::partial_sort(confidences.begin(), confidences.begin() + selectedParts,
+						  confidences.end(), std::greater<std::pair<float, int>>());
 
-		for (int j = 0; j < allParts; ++j)
+		for (size_t j = 0; j < selectedParts; ++j)
 		{
 			if (confidences[j].first < 0.55f)
 				continue;
