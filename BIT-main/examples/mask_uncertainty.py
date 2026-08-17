@@ -47,6 +47,12 @@ def compute_mask_uncertainty(masks, scores, logits=None, previous_mask=None,
         "temporal_inconsistency": None if previous_mask is None else 1.0 - _iou(selected_mask, previous_mask),
         "projection_inconsistency": None if projected_mask is None else 1.0 - _iou(selected_mask, projected_mask),
     }
+    features["temporal_missing"] = int(previous_mask is None)
+    features["temporal_or_projection_inconsistency"] = (
+        features["temporal_inconsistency"]
+        if features["temporal_inconsistency"] is not None
+        else features["projection_inconsistency"]
+    )
     weighted = []
     for name, weight in (
         ("candidate_disagreement", 0.30),

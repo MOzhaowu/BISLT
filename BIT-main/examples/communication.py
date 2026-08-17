@@ -7,7 +7,7 @@ import copy
 import cv2
 from utils import pjoin
 class DataGroups:
-    def __init__(self, rgbs=None, probs=None, masks=None, Ts=None, Ks=None, origin_rois=None, target_rois=None, target_sizes=None):
+    def __init__(self, rgbs=None, probs=None, masks=None, Ts=None, Ks=None, origin_rois=None, target_rois=None, target_sizes=None, frame_indices=None):
         self.rgbs_ = rgbs if rgbs is not None else []
         self.probs_ = probs if probs is not None else []
         self.masks_ = masks if masks is not None else []
@@ -16,6 +16,7 @@ class DataGroups:
         self.origin_rois_ = origin_rois if origin_rois is not None else []
         self.target_rois_ = target_rois if target_rois is not None else []
         self.target_sizes_ = target_sizes if target_sizes is not None else []
+        self.frame_indices_ = frame_indices if frame_indices is not None else []
         
     def add(self, other):
         for rgb in other.rgbs_:
@@ -29,11 +30,12 @@ class DataGroups:
         self.origin_rois_ = np.vstack((self.origin_rois_, other.origin_rois_))
         self.target_rois_ = np.vstack((self.target_rois_, other.target_rois_))
         self.target_sizes_ = np.vstack((self.target_sizes_, other.target_sizes_))
+        self.frame_indices_.extend(other.frame_indices_)
 
     def print_info(self, title = "") -> None:
         print(title)
-        headers = ["rgbs_", "probs_", "Ts_", "Ks_", "origin_rois_", "target_rois_", "target_sizes_"]
-        counts = [len(self.rgbs_), len(self.probs_), len(self.Ts_), len(self.Ks_), len(self.origin_rois_), len(self.target_rois_), len(self.target_sizes_)]
+        headers = ["rgbs_", "probs_", "Ts_", "Ks_", "origin_rois_", "target_rois_", "target_sizes_", "frame_indices_"]
+        counts = [len(self.rgbs_), len(self.probs_), len(self.Ts_), len(self.Ks_), len(self.origin_rois_), len(self.target_rois_), len(self.target_sizes_), len(self.frame_indices_)]
         # Determine the column width
         col_width = max(len(header) for header in headers) + 2  # Adding space for padding
         # Print the headers
@@ -63,7 +65,8 @@ class DataGroups:
                 f"probs={len(self.probs_)} Tensors, masks={len(self.masks_)} Tensors, "
                 f"Ts={len(self.Ts_)} Tensors, Ks={len(self.Ks_)} Tensors, "
                 f"origin_rois={len(self.origin_rois_)} items, target_rois={len(self.target_rois_)} items, "
-                f"target_sizes={len(self.target_sizes_)} items)")
+                f"target_sizes={len(self.target_sizes_)} items, "
+                f"frame_indices={len(self.frame_indices_)} items)")
         
 class LocalStorageCommunication:
 	def __init__(self, root, rgb_folder = "img", prob_folder = "prob", mask_folder = "mask", \
@@ -190,6 +193,7 @@ class LocalStorageCommunication:
 		Ks = []
 		origin_rois = []
 		target_rois = []
+		frame_indices = []
 		target_sizes = []
 
 		if self.consume_once_:
@@ -274,9 +278,24 @@ class LocalStorageCommunication:
 					target_sizes.append(line_data)
 		target_sizes = np.stack(target_sizes, axis = 0)
 
+		canonical_stems = [os.path.splitext(name)[0] for name in newest_K_files]
+		modalities = {
+			"rgb": newest_rgb_files, "prob": newest_prob_files,
+			"mask": newest_mask_files, "pose": newest_pose_files,
+			"origin_roi": newest_origin_roi_files,
+			"target_roi": newest_target_roi_files,
+			"target_size": newest_target_size_files,
+		}
+		for modality, files in modalities.items():
+			stems = [os.path.splitext(name)[0] for name in files]
+			if stems != canonical_stems:
+				raise ValueError("Frame mismatch for {}: {} != {}".format(modality, stems, canonical_stems))
+		frame_indices = [int(stem) for stem in canonical_stems]
+
 		if self.consume_once_:
 			self.processed_count_ = end
-		return DataGroups(rgbs=imgs, probs=probs, masks=masks, Ts=poses, Ks=Ks, origin_rois=origin_rois, target_rois=target_rois, target_sizes=target_sizes)
+		return DataGroups(rgbs=imgs, probs=probs, masks=masks, Ts=poses, Ks=Ks, origin_rois=origin_rois, target_rois=target_rois, target_sizes=target_sizes,
+			frame_indices=frame_indices)
 
 
 	def SetBaseDatas(self, imgs, probs, masks, poses, Ks, origin_rois, target_rois, target_sizes):

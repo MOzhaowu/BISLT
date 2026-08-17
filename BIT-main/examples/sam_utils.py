@@ -200,6 +200,7 @@ def segment(predictor, img_width, img_height, dataGroups, configs, save_index,
         cv_roi = scale_cv_roi(cv_roi = dataGroups.origin_rois_[i], scale = 1)
         bbx_prompt = np.array(cv_roi_2_sam_bbx(cv_roi = cv_roi))
         pts_prompt = np.array(pts_prompt_from_roi(cv_roi = cv_roi))
+        frame_index = int(dataGroups.frame_indices_[i])
         label_prompt = np.array([1,0,0,0,0])
     
         predictor.set_image(dataGroups.rgbs_[i].copy())
@@ -227,11 +228,13 @@ def segment(predictor, img_width, img_height, dataGroups, configs, save_index,
                 masks=np.asarray(masks, dtype=np.uint8),
                 scores=np.asarray(scores, dtype=np.float32),
                 logits=np.asarray(logits, dtype=np.float32),
+                frame_index=np.asarray(frame_index, dtype=np.int64),
             )
             record = dict(features)
             record.update({
                 'schema_version': 1,
                 'observation_index': uncertainty_index,
+                'frame_index': frame_index,
                 'batch_index': i,
                 'archive': archive_name,
                 'candidate_count': int(len(masks)),

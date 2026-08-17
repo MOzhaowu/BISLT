@@ -61,6 +61,7 @@ class MaskUncertaintyTest(unittest.TestCase):
             origin_rois_=[np.array([0, 0, 2, 2])],
             target_rois_=[np.array([0, 0, 2, 2])],
             target_sizes_=[np.array([2, 2])],
+            frame_indices_=[17],
         )
         with tempfile.TemporaryDirectory() as directory, \
                 mock.patch.object(sam_utils, "show_prompt"), \
@@ -73,7 +74,9 @@ class MaskUncertaintyTest(unittest.TestCase):
             self.assertEqual(archive["masks"].shape, (3, 2, 2))
             self.assertTrue(np.allclose(archive["scores"], [0.1, 0.9, 0.2]))
             self.assertEqual(archive["logits"].dtype, np.float32)
+            self.assertEqual(int(archive["frame_index"]), 17)
             record = json.loads((Path(directory) / "mask_uncertainty.jsonl").read_text())
+            self.assertEqual(record["frame_index"], 17)
             self.assertEqual(record["selected_index"], 0)
             self.assertEqual(record["output_candidate_index"], 0)
             self.assertEqual(record["best_index"], 1)
