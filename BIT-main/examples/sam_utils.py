@@ -3,8 +3,10 @@ import numpy as np
 import yaml
 import cv2
 import os
+import json
 
 import communication
+from mask_uncertainty import compute_mask_uncertainty
 
 def LoadConfig(config_file):
     with open(config_file, 'r') as file:
@@ -182,8 +184,17 @@ def MultiplySamWithProb(sams, probs):
     return targets
 
 
-def segment(predictor, img_width, img_height, dataGroups, configs, save_index):
+def segment(predictor, img_width, img_height, dataGroups, configs, save_index,
+            uncertainty_dir=None):
     predict_masks = dataGroups.probs_.copy()
+    previous_mask = None
+    uncertainty_index = 0
+    if uncertainty_dir is not None:
+        os.makedirs(uncertainty_dir, exist_ok=True)
+        uncertainty_index = len([
+            name for name in os.listdir(uncertainty_dir)
+            if name.startswith('observation_') and name.endswith('.npz')
+        ])
     print("len(dataGroups.rgbs_) ", len(dataGroups.rgbs_))
     for i in range(0, len(dataGroups.rgbs_)):
         cv_roi = scale_cv_roi(cv_roi = dataGroups.origin_rois_[i], scale = 1)
@@ -197,6 +208,39 @@ def segment(predictor, img_width, img_height, dataGroups, configs, save_index):
 	        multimask_output = True,
         )
         bg = dataGroups.rgbs_[i].copy()
+        if uncertainty_dir is not None:
+            projected_mask = np.asarray(dataGroups.probs_[i])
+            if projected_mask.shape != masks[0].shape:
+                projected_mask = cv2.resize(
+                    projected_mask, (masks[0].shape[1], masks[0].shape[0]),
+                    interpolation=cv2.INTER_NEAREST,
+                )
+            features, diagnostic_best_mask = compute_mask_uncertainty(
+                masks=masks, scores=scores, logits=logits,
+                previous_mask=previous_mask,
+                projected_mask=projected_mask > 127,
+                selected_index=0,
+            )
+            archive_name = 'observation_{:06d}.npz'.format(uncertainty_index)
+            np.savez_compressed(
+                os.path.join(uncertainty_dir, archive_name),
+                masks=np.asarray(masks, dtype=np.uint8),
+                scores=np.asarray(scores, dtype=np.float32),
+                logits=np.asarray(logits, dtype=np.float32),
+            )
+            record = dict(features)
+            record.update({
+                'schema_version': 1,
+                'observation_index': uncertainty_index,
+                'batch_index': i,
+                'archive': archive_name,
+                'candidate_count': int(len(masks)),
+                'output_candidate_index': 0,
+            })
+            with open(os.path.join(uncertainty_dir, 'mask_uncertainty.jsonl'), 'a') as stream:
+                stream.write(json.dumps(record, sort_keys=True) + '\n')
+            previous_mask = diagnostic_best_mask.copy()
+            uncertainty_index += 1
         show_prompt(type="mask", bg=bg, mask=masks[0], index=save_index, config=configs, waitkey=30)
         show_prompt(type="bbx", bg=bg, bbx=bbx_prompt, index=save_index, config=configs, waitkey=30)
         show_prompt(type="points", bg=bg, points=pts_prompt, labels=label_prompt, index=save_index, config=configs, waitkey=30)

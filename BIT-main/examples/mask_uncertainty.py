@@ -33,17 +33,19 @@ def boundary_entropy(logits):
     return float(np.mean(selected) / np.log(2.0))
 
 
-def compute_mask_uncertainty(masks, scores, logits=None, previous_mask=None, projected_mask=None):
+def compute_mask_uncertainty(masks, scores, logits=None, previous_mask=None,
+                             projected_mask=None, selected_index=None):
     masks = np.asarray(masks, dtype=bool)
     scores = np.asarray(scores, dtype=np.float64)
     best_index = int(np.argmax(scores))
-    best_mask = masks[best_index]
+    selected_index = best_index if selected_index is None else int(selected_index)
+    selected_mask = masks[selected_index]
     features = {
-        "sam_score": float(scores[best_index]),
+        "sam_score": float(scores[selected_index]),
         "candidate_disagreement": candidate_disagreement(masks),
-        "boundary_entropy": boundary_entropy(None if logits is None else logits[best_index]),
-        "temporal_inconsistency": None if previous_mask is None else 1.0 - _iou(best_mask, previous_mask),
-        "projection_inconsistency": None if projected_mask is None else 1.0 - _iou(best_mask, projected_mask),
+        "boundary_entropy": boundary_entropy(None if logits is None else logits[selected_index]),
+        "temporal_inconsistency": None if previous_mask is None else 1.0 - _iou(selected_mask, previous_mask),
+        "projection_inconsistency": None if projected_mask is None else 1.0 - _iou(selected_mask, projected_mask),
     }
     weighted = []
     for name, weight in (
@@ -58,7 +60,8 @@ def compute_mask_uncertainty(masks, scores, logits=None, previous_mask=None, pro
     features["uncertainty"] = float(np.clip(uncertainty, 0.0, 1.0))
     features["confidence"] = 1.0 - features["uncertainty"]
     features["best_index"] = best_index
-    return features, best_mask
+    features["selected_index"] = selected_index
+    return features, selected_mask
 
 
 def binary_auroc(labels, scores):

@@ -372,6 +372,16 @@ def main():
     sam            = sam_model_registry[model_type](checkpoint=sam_checkpoint)
     sam.to(device=device)
     predictor      = SamPredictor(sam)
+    mask_uncertainty_dir = os.path.join(
+        os.path.dirname(configs['output_dir']), 'mask_uncertainty'
+    )
+    os.makedirs(mask_uncertainty_dir, exist_ok=True)
+    for filename in os.listdir(mask_uncertainty_dir):
+        if filename.startswith('observation_') and filename.endswith('.npz'):
+            os.remove(os.path.join(mask_uncertainty_dir, filename))
+    with open(os.path.join(mask_uncertainty_dir, 'mask_uncertainty.jsonl'), 'w'):
+        pass
+
 
     
     save_obj_path = configs['save_obj_path']
@@ -410,7 +420,11 @@ def main():
             dataGroups = lsc.get_dataGroups()
             dataGroups.print_info()
 
-            segmented_masks = su.segment(predictor=predictor, img_width=img_w, img_height=img_h, dataGroups=dataGroups, configs=configs, save_index=save_index)
+            segmented_masks = su.segment(
+                predictor=predictor, img_width=img_w, img_height=img_h,
+                dataGroups=dataGroups, configs=configs, save_index=save_index,
+                uncertainty_dir=mask_uncertainty_dir,
+            )
             lsc.set_max_count(max_count = img_nums[cur_model_deformed_nums+1])
             segmented_masks = ut.FlipMatImgs(segmented_masks, axis = 0)	
             probs = ut.FlipMatImgs(dataGroups.probs_, axis = 0)	

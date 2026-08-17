@@ -80,6 +80,9 @@ for config in "${configs[@]}"; do
         if [ -d "$dataset_sequence_dir/cmc/model_candidates" ]; then
             cp -a "$dataset_sequence_dir/cmc/model_candidates" "$run_dir/"
         fi
+        if [ -d "$dataset_sequence_dir/cmc/mask_uncertainty" ]; then
+            cp -a "$dataset_sequence_dir/cmc/mask_uncertainty" "$run_dir/"
+        fi
         if "$python_bin" scripts/evaluate_baseline.py "$run_dir" \
             --object "$object" --sequence "$sequence" --expected-frames "$expected_frames" \
             >"$run_dir/evaluation.log" 2>&1 && \
