@@ -251,7 +251,18 @@ int main(int argc, char *argv[])
 	CHECK(diagnostics.is_open()) << "Can not open diagnostics output in " << resultSaveRoot;
 	diagnostics << "frame_index,model_version_used,model_version_after,model_reloaded_after_frame,tracking_time_ms,data_group_valid,"
 				<< "roi_x,roi_y,roi_width,roi_height,view_x,view_y,view_z,min_view_angle_deg,"
-				<< "is_reference,view_candidate,sent_to_python,contour_residual,histogram_separation,contour_samples\n";
+				<< "is_reference,view_candidate,sent_to_python,contour_residual,histogram_separation,contour_samples,contour_noise_variance,"
+				<< "pose_hessian_valid,hessian_min_eigenvalue,hessian_max_eigenvalue,"
+				<< "hessian_condition,pose_covariance_trace,object_characteristic_length,"
+				<< "pose_teacher_valid,pose_teacher_probes,pose_teacher_failures,"
+				<< "pose_teacher_failure_rate,pose_teacher_rotation_rms_deg,pose_teacher_translation_rms_mm,"
+				<< "pose_teacher_ablation_probes,pose_teacher_axis_failure_rate_small,"
+				<< "pose_teacher_axis_failure_rate_medium,pose_teacher_axis_failure_rate_large,"
+				<< "pose_teacher_joint_failure_rate_small,pose_teacher_joint_failure_rate_medium,pose_teacher_joint_failure_rate_large";
+	for (int row = 0; row < 6; ++row)
+		for (int col = 0; col < 6; ++col)
+			diagnostics << ",hessian_" << row << col;
+	diagnostics << "\n";
 	diagnostics << std::fixed << std::setprecision(8);
 	for (auto ip : ips)
 	{
@@ -319,7 +330,32 @@ int main(int argc, char *argv[])
 					<< viewCandidate << "," << sentToPython << ","
 					<< pRes->trackingResult->dataGroup.contour_residual << ","
 					<< pRes->trackingResult->dataGroup.histogram_separation << ","
-					<< pRes->trackingResult->dataGroup.contour_samples << "\n";
+					<< pRes->trackingResult->dataGroup.contour_samples << ","
+					<< pRes->trackingResult->dataGroup.contour_noise_variance << ","
+					<< pRes->trackingResult->dataGroup.pose_hessian_valid << ","
+					<< pRes->trackingResult->dataGroup.hessian_min_eigenvalue << ","
+					<< pRes->trackingResult->dataGroup.hessian_max_eigenvalue << ","
+					<< pRes->trackingResult->dataGroup.hessian_condition << ","
+					<< pRes->trackingResult->dataGroup.pose_covariance_trace << ","
+					<< pRes->trackingResult->dataGroup.object_characteristic_length << ","
+					<< pRes->trackingResult->dataGroup.pose_teacher_valid << ","
+					<< pRes->trackingResult->dataGroup.pose_teacher_probes << ","
+					<< pRes->trackingResult->dataGroup.pose_teacher_failures << ","
+					<< pRes->trackingResult->dataGroup.pose_teacher_failure_rate << ","
+					<< pRes->trackingResult->dataGroup.pose_teacher_rotation_rms_deg << ","
+					<< pRes->trackingResult->dataGroup.pose_teacher_translation_rms_mm << ","
+					<< pRes->trackingResult->dataGroup.pose_teacher_ablation_probes << ","
+					<< pRes->trackingResult->dataGroup.pose_teacher_axis_failure_rate_small << ","
+					<< pRes->trackingResult->dataGroup.pose_teacher_axis_failure_rate_medium << ","
+					<< pRes->trackingResult->dataGroup.pose_teacher_axis_failure_rate_large << ","
+					<< pRes->trackingResult->dataGroup.pose_teacher_joint_failure_rate_small << ","
+					<< pRes->trackingResult->dataGroup.pose_teacher_joint_failure_rate_medium << ","
+					<< pRes->trackingResult->dataGroup.pose_teacher_joint_failure_rate_large;
+		for (int row = 0; row < 6; ++row)
+			for (int col = 0; col < 6; ++col)
+				diagnostics << "," <<
+					pRes->trackingResult->dataGroup.pose_hessian(row, col);
+		diagnostics << "\n";
 		diagnostics.flush();
 
 		if (27 == key)

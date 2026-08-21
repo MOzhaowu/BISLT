@@ -38,7 +38,7 @@ def labels(rows, label):
     return np.asarray([int(row[label]) for row in rows], dtype=float)
 
 
-def fit(rows, features, label, l2):
+def fit(rows, features, label, l2, group_balanced=False):
     x, y = matrix(rows, features), labels(rows, label)
     medians = np.nanmedian(x, axis=0)
     medians = np.where(np.isfinite(medians), medians, 0.0)
@@ -46,14 +46,25 @@ def fit(rows, features, label, l2):
     means, scales = x.mean(axis=0), x.std(axis=0)
     scales[scales < 1e-8] = 1.0
     z = (x - means) / scales
+    weights = np.ones(len(rows), dtype=float)
+    if group_balanced:
+        counts = {}
+        for row in rows:
+            key = (row["object"], row["sequence"])
+            counts[key] = counts.get(key, 0) + 1
+        weights = np.asarray([
+            1.0 / counts[(row["object"], row["sequence"])] for row in rows
+        ])
+        weights /= weights.mean()
 
     def objective(p):
         probability = sigmoid(p[0] + z @ p[1:])
-        nll = -np.mean(y * np.log(probability + 1e-12) +
+        per_sample = -(y * np.log(probability + 1e-12) +
                        (1-y) * np.log(1-probability + 1e-12))
+        nll = np.average(per_sample, weights=weights)
         return nll + 0.5 * l2 * np.sum(p[1:] ** 2) / len(y)
 
-    prevalence = np.clip(y.mean(), 1e-4, 1-1e-4)
+    prevalence = np.clip(np.average(y, weights=weights), 1e-4, 1-1e-4)
     initial = np.zeros(len(features)+1)
     initial[0] = np.log(prevalence/(1-prevalence))
     result = minimize(objective, initial, method="BFGS")
@@ -82,7 +93,7 @@ def metrics(y, probability, bins):
             "log_loss": log_loss(y, probability)}
 
 
-def choose_l2(groups, features, label, candidates):
+def choose_l2(groups, features, label, candidates, group_balanced=False):
     scores = {}
     for value in candidates:
         losses = []
@@ -91,7 +102,7 @@ def choose_l2(groups, features, label, candidates):
                         for row in rows]
             if len(set(labels(training, label))) < 2:
                 continue
-            model = fit(training, features, label, value)
+            model = fit(training, features, label, value, group_balanced)
             losses.append(log_loss(labels(validation, label),
                                    predict(validation, features, model)))
         scores[str(value)] = float(np.mean(losses)) if losses else None
@@ -99,13 +110,15 @@ def choose_l2(groups, features, label, candidates):
     return min(valid, key=lambda value: scores[str(value)]), scores
 
 
-def evaluate(groups, features, label, candidates, bins):
+def evaluate(groups, features, label, candidates, bins, group_balanced=False):
     predictions, folds = [], {}
     for held_out, test in sorted(groups.items()):
         training_groups = {key: rows for key, rows in groups.items() if key != held_out}
-        selected, inner = choose_l2(training_groups, features, label, candidates)
+        selected, inner = choose_l2(
+            training_groups, features, label, candidates, group_balanced
+        )
         training = [row for rows in training_groups.values() for row in rows]
-        model = fit(training, features, label, selected)
+        model = fit(training, features, label, selected, group_balanced)
         probability = predict(test, features, model)
         y = labels(test, label).astype(int)
         folds[held_out] = {"selected_l2": selected, "inner_log_loss": inner,

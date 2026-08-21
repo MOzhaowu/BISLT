@@ -817,6 +817,8 @@ namespace summer
 			cv::Matx61f JT = cv::Matx61f::zeros(), iphJT = cv::Matx61f::zeros();
 
 			ComputeJac(objects[o], m_id, imagePyramid[level], mask_map, masks_map, depth_map, depth_inv_map, search_line, wJTJ, JT, band_width, ss);
+			pose_hessian_ = wJTJ;
+			pose_hessian_valid_ = cv::checkRange(cv::Mat(pose_hessian_));
 			cv::Matx44f T_cm = Transformations::exp(-wJTJ.inv(cv::DECOMP_CHOLESKY) * JT) * objects[o]->getPose();
 			objects[o]->setPose(T_cm);
 		}

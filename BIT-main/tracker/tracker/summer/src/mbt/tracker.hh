@@ -41,6 +41,8 @@ namespace summer
 		bool initialized() const { return initialized_; }
 		cv::Matx33f K() const { return K_; }
 		std::shared_ptr<Prompter> prompter() { return prompter_; }
+		const cv::Matx66f &pose_hessian() const { return pose_hessian_; }
+		bool pose_hessian_valid() const { return pose_hessian_valid_; }
 
 	protected:
 		bool initialized_{false};
@@ -56,6 +58,8 @@ namespace summer
 		BundleHist *hists;
 
 		std::shared_ptr<Prompter> prompter_;
+		cv::Matx66f pose_hessian_{cv::Matx66f::zeros()};
+		bool pose_hessian_valid_{false};
 	};
 
 	inline float GetDistance(const cv::Point &p1, const cv::Point &p2)

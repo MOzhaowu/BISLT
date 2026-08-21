@@ -82,7 +82,19 @@ def main():
         "data_group_valid", "roi_x", "roi_y", "roi_width",
         "roi_height", "view_x", "view_y", "view_z", "min_view_angle_deg",
         "is_reference", "view_candidate", "sent_to_python",
-        "contour_residual", "histogram_separation", "contour_samples",
+        "contour_residual", "histogram_separation", "contour_samples", "contour_noise_variance",
+        "pose_hessian_valid", "hessian_min_eigenvalue",
+        "hessian_max_eigenvalue", "hessian_condition",
+        "pose_covariance_trace", "object_characteristic_length",
+        "pose_teacher_valid", "pose_teacher_probes", "pose_teacher_failures",
+        "pose_teacher_failure_rate", "pose_teacher_rotation_rms_deg",
+        "pose_teacher_translation_rms_mm",
+        "pose_teacher_ablation_probes", "pose_teacher_axis_failure_rate_small",
+        "pose_teacher_axis_failure_rate_medium", "pose_teacher_axis_failure_rate_large",
+        "pose_teacher_joint_failure_rate_small", "pose_teacher_joint_failure_rate_medium",
+        "pose_teacher_joint_failure_rate_large",
+        *["hessian_{}{}".format(row, col)
+          for row in range(6) for col in range(6)],
 
         "rotation_error_deg", "translation_error_mm", "success_5deg_50mm",
     ]

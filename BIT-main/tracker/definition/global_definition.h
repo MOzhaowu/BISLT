@@ -65,6 +65,27 @@ struct DataGroup
 	float contour_residual{NAN};
 	float histogram_separation{NAN};
 	int contour_samples{0};
+	float contour_noise_variance{NAN};
+	cv::Matx66f pose_hessian{cv::Matx66f::zeros()};
+	bool pose_hessian_valid{false};
+	float hessian_min_eigenvalue{NAN};
+	float hessian_max_eigenvalue{NAN};
+	float hessian_condition{NAN};
+	float pose_covariance_trace{NAN};
+	float object_characteristic_length{NAN};
+	bool pose_teacher_valid{false};
+	int pose_teacher_probes{0};
+	int pose_teacher_failures{0};
+	float pose_teacher_failure_rate{NAN};
+	float pose_teacher_rotation_rms_deg{NAN};
+	float pose_teacher_translation_rms_mm{NAN};
+	int pose_teacher_ablation_probes{0};
+	float pose_teacher_axis_failure_rate_small{NAN};
+	float pose_teacher_axis_failure_rate_medium{NAN};
+	float pose_teacher_axis_failure_rate_large{NAN};
+	float pose_teacher_joint_failure_rate_small{NAN};
+	float pose_teacher_joint_failure_rate_medium{NAN};
+	float pose_teacher_joint_failure_rate_large{NAN};
 };
 
 enum DetectorType

@@ -4,6 +4,7 @@
 #include "ar_utils/data_io/data_loader.h"
 
 #include <memory>
+#include <cstdlib>
 
 using namespace ar3dv;
 
@@ -172,6 +173,7 @@ void SummerTracker::Estimate()
 	if (probDeepCopy.type() == CV_8UC1 && !probDeepCopy.empty())
 	{
 		double residualSum = 0.0;
+		double noiseVarianceSum = 0.0;
 		double separationSum = 0.0;
 		int sampleCount = 0;
 		for (int row = 0; row < probDeepCopy.rows; ++row)
@@ -180,6 +182,7 @@ void SummerTracker::Estimate()
 			for (int col = 0; col < probDeepCopy.cols; ++col)
 			{
 				const double foreground = values[col] / 255.0;
+				noiseVarianceSum += foreground * (1.0 - foreground);
 				residualSum += -std::log(std::max(1e-7, std::max(foreground, 1.0 - foreground)));
 				separationSum += std::abs(2.0 * foreground - 1.0);
 				++sampleCount;
@@ -187,7 +190,185 @@ void SummerTracker::Estimate()
 		}
 		dataGroup.contour_residual = residualSum / sampleCount;
 		dataGroup.histogram_separation = separationSum / sampleCount;
+		dataGroup.contour_noise_variance = noiseVarianceSum / sampleCount;
 		dataGroup.contour_samples = sampleCount;
+	}
+	dataGroup.pose_hessian = tracker_->pose_hessian();
+	dataGroup.pose_hessian_valid = tracker_->pose_hessian_valid();
+	const cv::Vec3f modelExtent =
+		(m_objects[0]->getRTF() - m_objects[0]->getLBN()) *
+		m_objects[0]->getScaling();
+	dataGroup.object_characteristic_length = cv::norm(modelExtent);
+	if (dataGroup.pose_hessian_valid)
+	{
+		cv::Mat eigenvalues;
+		if (cv::eigen(cv::Mat(dataGroup.pose_hessian), eigenvalues))
+		{
+			dataGroup.hessian_max_eigenvalue = eigenvalues.at<float>(0);
+			dataGroup.hessian_min_eigenvalue = eigenvalues.at<float>(
+				eigenvalues.rows - 1);
+			const float minimum = std::max(
+				dataGroup.hessian_min_eigenvalue, 1e-12f);
+			dataGroup.hessian_condition =
+				dataGroup.hessian_max_eigenvalue / minimum;
+			cv::Matx66f regularized = dataGroup.pose_hessian;
+			const float damping = std::max(
+				1e-9f, dataGroup.hessian_max_eigenvalue * 1e-6f);
+			for (int axis = 0; axis < 6; ++axis)
+				regularized(axis, axis) += damping;
+			const cv::Matx66f covariance =
+				regularized.inv(cv::DECOMP_SVD);
+			dataGroup.pose_covariance_trace = static_cast<float>(
+				cv::trace(cv::Mat(covariance))[0]);
+			dataGroup.pose_hessian_valid =
+				std::isfinite(dataGroup.hessian_condition) &&
+				std::isfinite(dataGroup.pose_covariance_trace);
+		}
+	}
+	const char *teacherStrideText = std::getenv("BIT_POSE_TEACHER_STRIDE");
+	const int teacherStride = teacherStrideText ? std::atoi(teacherStrideText) : 0;
+	if (teacherStride > 0 && currData->index % teacherStride == 0)
+	{
+		const cv::Matx44f nominalPose = currPose;
+		cv::Matx44f nominalMetricPose = nominalPose;
+		NormalizePoseByPD(nominalMetricPose);
+		const float rotationStep = 3.0f * static_cast<float>(CV_PI) / 180.0f;
+		const float translationStep = 0.005f;
+		double rotationSquared = 0.0;
+		double translationSquared = 0.0;
+		for (int axis = 0; axis < 6; ++axis)
+		{
+			for (int sign : {-1, 1})
+			{
+				cv::Matx61f perturbation = cv::Matx61f::zeros();
+				perturbation(axis, 0) = sign *
+					(axis < 3 ? rotationStep : translationStep);
+				m_objects[0]->setPose(
+					summer::Transformations::exp(perturbation) * nominalPose);
+				tracker_->EstimatePoses(currData->frame, 2);
+				const cv::Matx44f recovered = m_objects[0]->getPose();
+				cv::Matx44f recoveredMetricPose = recovered;
+				NormalizePoseByPD(recoveredMetricPose);
+				cv::Matx33f nominalRotation, recoveredRotation;
+				for (int row = 0; row < 3; ++row)
+					for (int col = 0; col < 3; ++col)
+					{
+						nominalRotation(row, col) = nominalMetricPose(row, col);
+						recoveredRotation(row, col) = recoveredMetricPose(row, col);
+					}
+				const cv::Matx33f relative =
+					recoveredRotation * nominalRotation.t();
+				const float cosine = std::max(-1.0f, std::min(1.0f,
+					(static_cast<float>(cv::trace(cv::Mat(relative))[0]) - 1.0f) / 2.0f));
+				const float rotationDeg = std::acos(cosine) * 180.0f /
+					static_cast<float>(CV_PI);
+				const cv::Vec3f translation(
+					recovered(0, 3) - nominalPose(0, 3),
+					recovered(1, 3) - nominalPose(1, 3),
+					recovered(2, 3) - nominalPose(2, 3));
+				const float translationMm = cv::norm(translation) * 1000.0f;
+				rotationSquared += rotationDeg * rotationDeg;
+				translationSquared += translationMm * translationMm;
+				dataGroup.pose_teacher_failures +=
+					(rotationDeg > 1.0f || translationMm > 2.0f);
+				++dataGroup.pose_teacher_probes;
+			}
+		}
+		m_objects[0]->setPose(nominalPose);
+		dataGroup.pose_teacher_valid = true;
+		dataGroup.pose_teacher_failure_rate = static_cast<float>(
+			dataGroup.pose_teacher_failures) / dataGroup.pose_teacher_probes;
+		dataGroup.pose_teacher_rotation_rms_deg = std::sqrt(
+			rotationSquared / dataGroup.pose_teacher_probes);
+		dataGroup.pose_teacher_translation_rms_mm = std::sqrt(
+			translationSquared / dataGroup.pose_teacher_probes);
+	}
+	const char *teacherAblationText = std::getenv("BIT_POSE_TEACHER_ABLATION");
+	const bool teacherAblation = teacherAblationText && std::atoi(teacherAblationText) != 0;
+	if (teacherAblation && dataGroup.pose_teacher_valid)
+	{
+		const cv::Matx44f nominalPose = currPose;
+		cv::Matx44f nominalMetricPose = nominalPose;
+		NormalizePoseByPD(nominalMetricPose);
+		const float rotationSteps[3] = {
+			1.0f * static_cast<float>(CV_PI) / 180.0f,
+			3.0f * static_cast<float>(CV_PI) / 180.0f,
+			5.0f * static_cast<float>(CV_PI) / 180.0f};
+		const float translationSteps[3] = {0.002f, 0.005f, 0.010f};
+		int axisFailures[3] = {0, dataGroup.pose_teacher_failures, 0};
+		int axisProbes[3] = {0, dataGroup.pose_teacher_probes, 0};
+		int jointFailures[3] = {0, 0, 0};
+		int jointProbes[3] = {0, 0, 0};
+
+		auto probeFailed = [&](const cv::Matx61f &perturbation) {
+			m_objects[0]->setPose(
+				summer::Transformations::exp(perturbation) * nominalPose);
+			tracker_->EstimatePoses(currData->frame, 2);
+			const cv::Matx44f recovered = m_objects[0]->getPose();
+			cv::Matx44f recoveredMetricPose = recovered;
+			NormalizePoseByPD(recoveredMetricPose);
+			cv::Matx33f nominalRotation, recoveredRotation;
+			for (int row = 0; row < 3; ++row)
+				for (int col = 0; col < 3; ++col)
+				{
+					nominalRotation(row, col) = nominalMetricPose(row, col);
+					recoveredRotation(row, col) = recoveredMetricPose(row, col);
+				}
+			const cv::Matx33f relative = recoveredRotation * nominalRotation.t();
+			const float cosine = std::max(-1.0f, std::min(1.0f,
+				(static_cast<float>(cv::trace(cv::Mat(relative))[0]) - 1.0f) / 2.0f));
+			const float rotationDeg = std::acos(cosine) * 180.0f /
+				static_cast<float>(CV_PI);
+			const cv::Vec3f translation(
+				recovered(0, 3) - nominalPose(0, 3),
+				recovered(1, 3) - nominalPose(1, 3),
+				recovered(2, 3) - nominalPose(2, 3));
+			return rotationDeg > 1.0f || cv::norm(translation) * 1000.0f > 2.0f;
+		};
+
+		for (int radius : {0, 2})
+			for (int axis = 0; axis < 6; ++axis)
+				for (int sign : {-1, 1})
+				{
+					cv::Matx61f perturbation = cv::Matx61f::zeros();
+					perturbation(axis, 0) = sign *
+						(axis < 3 ? rotationSteps[radius] : translationSteps[radius]);
+					axisFailures[radius] += probeFailed(perturbation);
+					++axisProbes[radius];
+					++dataGroup.pose_teacher_ablation_probes;
+				}
+
+		const int signs[4][6] = {
+			{1, 1, 1, 1, 1, 1}, {1, -1, 1, -1, 1, -1},
+			{-1, 1, 1, 1, -1, -1}, {1, 1, -1, -1, -1, 1}};
+		const float invSqrtThree = 1.0f / std::sqrt(3.0f);
+		for (int radius = 0; radius < 3; ++radius)
+			for (int pattern = 0; pattern < 4; ++pattern)
+			{
+				cv::Matx61f perturbation = cv::Matx61f::zeros();
+				for (int axis = 0; axis < 3; ++axis)
+					perturbation(axis, 0) = signs[pattern][axis] *
+						rotationSteps[radius] * invSqrtThree;
+				for (int axis = 3; axis < 6; ++axis)
+					perturbation(axis, 0) = signs[pattern][axis] *
+						translationSteps[radius] * invSqrtThree;
+				jointFailures[radius] += probeFailed(perturbation);
+				++jointProbes[radius];
+				++dataGroup.pose_teacher_ablation_probes;
+			}
+		m_objects[0]->setPose(nominalPose);
+		dataGroup.pose_teacher_axis_failure_rate_small =
+			static_cast<float>(axisFailures[0]) / axisProbes[0];
+		dataGroup.pose_teacher_axis_failure_rate_medium =
+			static_cast<float>(axisFailures[1]) / axisProbes[1];
+		dataGroup.pose_teacher_axis_failure_rate_large =
+			static_cast<float>(axisFailures[2]) / axisProbes[2];
+		dataGroup.pose_teacher_joint_failure_rate_small =
+			static_cast<float>(jointFailures[0]) / jointProbes[0];
+		dataGroup.pose_teacher_joint_failure_rate_medium =
+			static_cast<float>(jointFailures[1]) / jointProbes[1];
+		dataGroup.pose_teacher_joint_failure_rate_large =
+			static_cast<float>(jointFailures[2]) / jointProbes[2];
 	}
 	SetTrackingResult(ResultType::kResDataGroup, dataGroup);
 
