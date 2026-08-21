@@ -797,6 +797,8 @@ namespace summer
 			int m_id = (numInitialized <= 1) ? -1 : objects[o]->getModelID();
 			cv::Mat mask_map;
 			ConvertMask(masks_map, m_id, mask_map);
+			if (level == 0)
+				projection_mask_ = mask_map.clone();
 
 			search_line->FindContours(mask_map, sl_seg, true);
 			search_line->FindSearchLine(mask_map, imagePyramid[level], sl_len, sl_seg, true);
@@ -809,6 +811,17 @@ namespace summer
 			hists->GetBundleProb(search_line, imagePyramid[level], o);
 
 			FindMatchPoint(search_line, 0.5);
+			contour_search_lines_ = static_cast<int>(search_line->search_points.size());
+			active_contour_lines_ = 0;
+			matched_contour_lines_ = 0;
+			for (int line = 0; line < contour_search_lines_; ++line)
+			{
+				if (!search_line->actives[line])
+					continue;
+				++active_contour_lines_;
+				const int evidence = search_line->search_points[line].back().y;
+				matched_contour_lines_ += evidence >= 0;
+			}
 
 			renderer_->RenderSilhouette(objects[o], GL_FILL, true);
 			cv::Mat depth_inv_map = renderer_->DownloadFrameFromROI(Renderer::DEPTH, objects[0]);

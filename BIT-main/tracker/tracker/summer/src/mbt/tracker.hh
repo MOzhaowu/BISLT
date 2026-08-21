@@ -43,6 +43,10 @@ namespace summer
 		std::shared_ptr<Prompter> prompter() { return prompter_; }
 		const cv::Matx66f &pose_hessian() const { return pose_hessian_; }
 		bool pose_hessian_valid() const { return pose_hessian_valid_; }
+		int contour_search_lines() const { return contour_search_lines_; }
+		int active_contour_lines() const { return active_contour_lines_; }
+		int matched_contour_lines() const { return matched_contour_lines_; }
+		const cv::Mat &projection_mask() const { return projection_mask_; }
 
 	protected:
 		bool initialized_{false};
@@ -60,6 +64,10 @@ namespace summer
 		std::shared_ptr<Prompter> prompter_;
 		cv::Matx66f pose_hessian_{cv::Matx66f::zeros()};
 		bool pose_hessian_valid_{false};
+		int contour_search_lines_{0};
+		int active_contour_lines_{0};
+		int matched_contour_lines_{0};
+		cv::Mat projection_mask_;
 	};
 
 	inline float GetDistance(const cv::Point &p1, const cv::Point &p2)

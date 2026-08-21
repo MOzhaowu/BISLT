@@ -50,6 +50,25 @@ MODELS = {
     "initial_median_covariance_scale": [
         "log_normalized_covariance_trace_relative_to_initial_median",
         "log_object_characteristic_length"],
+    "visibility_only": [
+        "visible_boundary_ratio", "occlusion_ratio", "effective_contour_ratio",
+        "silhouette_iou"],
+    "initial_median_covariance_visibility": [
+        "log_normalized_covariance_trace_relative_to_initial_median",
+        "visible_boundary_ratio", "occlusion_ratio", "effective_contour_ratio",
+        "silhouette_iou"],
+    "initial_median_covariance_residual_spatial": [
+        "log_normalized_covariance_trace_relative_to_initial_median",
+        "contour_residual_stddev", "contour_residual_p90",
+        "contour_residual_centroid_offset"],
+    "initial_median_covariance_object_independent": [
+        "log_normalized_covariance_trace_relative_to_initial_median",
+        "visible_boundary_ratio", "occlusion_ratio", "effective_contour_ratio",
+        "silhouette_iou", "contour_residual_stddev", "contour_residual_p90",
+        "contour_residual_centroid_offset"],
+    "initial_median_covariance_minimal_boundary": [
+        "log_normalized_covariance_trace_relative_to_initial_median",
+        "occlusion_ratio", "effective_contour_ratio"],
 }
 
 

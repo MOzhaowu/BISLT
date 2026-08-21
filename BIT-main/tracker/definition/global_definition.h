@@ -66,6 +66,18 @@ struct DataGroup
 	float histogram_separation{NAN};
 	int contour_samples{0};
 	float contour_noise_variance{NAN};
+	float visible_boundary_ratio{NAN};
+	float occlusion_ratio{NAN};
+	float effective_contour_ratio{NAN};
+	float silhouette_iou{NAN};
+	float contour_residual_stddev{NAN};
+	float contour_residual_p90{NAN};
+	float contour_residual_centroid_offset{NAN};
+	float pose_diagnostics_time_ms{NAN};
+	float hessian_diagnostics_time_ms{NAN};
+	int contour_search_lines{0};
+	int active_contour_lines{0};
+	int matched_contour_lines{0};
 	cv::Matx66f pose_hessian{cv::Matx66f::zeros()};
 	bool pose_hessian_valid{false};
 	float hessian_min_eigenvalue{NAN};

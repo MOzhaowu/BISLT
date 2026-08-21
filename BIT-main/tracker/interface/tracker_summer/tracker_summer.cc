@@ -3,6 +3,7 @@
 #include "ar_utils/pose_converter/pose_converter.h"
 #include "ar_utils/data_io/data_loader.h"
 
+#include <algorithm>
 #include <memory>
 #include <cstdlib>
 
@@ -169,7 +170,19 @@ void SummerTracker::Estimate()
 
 	DataGroup dataGroup;
 	dataGroup.valid = false;
+	const int64 diagnosticStart = cv::getTickCount();
+	std::vector<float> spatialResiduals;
+	double spatialResidualSum = 0.0;
+	double spatialResidualSquaredSum = 0.0;
+	double residualWeightedX = 0.0;
+	double residualWeightedY = 0.0;
+	cv::Rect residualRoi;
+
 	dataGroup = ComDataGroup(frameDeepCopy, probDeepCopy);
+	const cv::Rect imageBounds(0, 0, probDeepCopy.cols, probDeepCopy.rows);
+	residualRoi = dataGroup.valid ?
+		(dataGroup.originRoi & imageBounds) : imageBounds;
+
 	if (probDeepCopy.type() == CV_8UC1 && !probDeepCopy.empty())
 	{
 		double residualSum = 0.0;
@@ -182,9 +195,19 @@ void SummerTracker::Estimate()
 			for (int col = 0; col < probDeepCopy.cols; ++col)
 			{
 				const double foreground = values[col] / 255.0;
+				const double residual = -std::log(
+					std::max(1e-7, std::max(foreground, 1.0 - foreground)));
 				noiseVarianceSum += foreground * (1.0 - foreground);
-				residualSum += -std::log(std::max(1e-7, std::max(foreground, 1.0 - foreground)));
+				residualSum += residual;
 				separationSum += std::abs(2.0 * foreground - 1.0);
+				if (residualRoi.contains(cv::Point(col, row)))
+				{
+					spatialResiduals.push_back(static_cast<float>(residual));
+					spatialResidualSum += residual;
+					spatialResidualSquaredSum += residual * residual;
+					residualWeightedX += residual * col;
+					residualWeightedY += residual * row;
+				}
 				++sampleCount;
 			}
 		}
@@ -193,6 +216,62 @@ void SummerTracker::Estimate()
 		dataGroup.contour_noise_variance = noiseVarianceSum / sampleCount;
 		dataGroup.contour_samples = sampleCount;
 	}
+	if (!spatialResiduals.empty())
+	{
+		const double spatialCount = static_cast<double>(spatialResiduals.size());
+		const double spatialMean = spatialResidualSum / spatialCount;
+		dataGroup.contour_residual_stddev = std::sqrt(std::max(
+			0.0, spatialResidualSquaredSum / spatialCount - spatialMean * spatialMean));
+		const size_t percentileIndex = static_cast<size_t>(
+			0.9 * static_cast<double>(spatialResiduals.size() - 1));
+		std::nth_element(spatialResiduals.begin(),
+			spatialResiduals.begin() + percentileIndex, spatialResiduals.end());
+		dataGroup.contour_residual_p90 = spatialResiduals[percentileIndex];
+		if (spatialResidualSum > 1e-12 && residualRoi.area() > 0)
+		{
+			const double centroidX = residualWeightedX / spatialResidualSum;
+			const double centroidY = residualWeightedY / spatialResidualSum;
+			const double centerX = residualRoi.x + 0.5 * residualRoi.width;
+			const double centerY = residualRoi.y + 0.5 * residualRoi.height;
+			const double diagonal = std::hypot(residualRoi.width, residualRoi.height);
+			dataGroup.contour_residual_centroid_offset = static_cast<float>(
+				std::hypot(centroidX - centerX, centroidY - centerY) /
+				std::max(diagonal, 1e-12));
+		}
+	}
+	dataGroup.contour_search_lines = tracker_->contour_search_lines();
+	dataGroup.active_contour_lines = tracker_->active_contour_lines();
+	dataGroup.matched_contour_lines = tracker_->matched_contour_lines();
+	if (dataGroup.active_contour_lines > 0)
+		dataGroup.effective_contour_ratio = static_cast<float>(
+			dataGroup.matched_contour_lines) / dataGroup.active_contour_lines;
+	cv::Mat projectionMask = tracker_->projection_mask().clone();
+	cv::Mat observedMask;
+	cv::threshold(probDeepCopy, observedMask, 127, 255, cv::THRESH_BINARY);
+	const int projectionPixels = cv::countNonZero(projectionMask);
+	cv::Mat intersection, unionMask, inverseObserved, missingProjection;
+	cv::bitwise_and(projectionMask, observedMask, intersection);
+	cv::bitwise_or(projectionMask, observedMask, unionMask);
+	cv::bitwise_not(observedMask, inverseObserved);
+	cv::bitwise_and(projectionMask, inverseObserved, missingProjection);
+	if (projectionPixels > 0)
+		dataGroup.occlusion_ratio = static_cast<float>(
+			cv::countNonZero(missingProjection)) / projectionPixels;
+	const int unionPixels = cv::countNonZero(unionMask);
+	if (unionPixels > 0)
+		dataGroup.silhouette_iou = static_cast<float>(
+			cv::countNonZero(intersection)) / unionPixels;
+	cv::Mat projectionBoundary, observedBoundary, observedBoundaryBand, supportedBoundary;
+	const cv::Mat boundaryKernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(5, 5));
+	cv::morphologyEx(projectionMask, projectionBoundary, cv::MORPH_GRADIENT, cv::Mat());
+	cv::morphologyEx(observedMask, observedBoundary, cv::MORPH_GRADIENT, cv::Mat());
+	cv::dilate(observedBoundary, observedBoundaryBand, boundaryKernel);
+	cv::bitwise_and(projectionBoundary, observedBoundaryBand, supportedBoundary);
+	const int boundaryPixels = cv::countNonZero(projectionBoundary);
+	if (boundaryPixels > 0)
+		dataGroup.visible_boundary_ratio = static_cast<float>(
+			cv::countNonZero(supportedBoundary)) / boundaryPixels;
+	const int64 hessianDiagnosticStart = cv::getTickCount();
 	dataGroup.pose_hessian = tracker_->pose_hessian();
 	dataGroup.pose_hessian_valid = tracker_->pose_hessian_valid();
 	const cv::Vec3f modelExtent =
@@ -225,6 +304,10 @@ void SummerTracker::Estimate()
 				std::isfinite(dataGroup.pose_covariance_trace);
 		}
 	}
+	dataGroup.hessian_diagnostics_time_ms = static_cast<float>(
+		(cv::getTickCount() - hessianDiagnosticStart) * 1000.0 / cv::getTickFrequency());
+	dataGroup.pose_diagnostics_time_ms = static_cast<float>(
+		(cv::getTickCount() - diagnosticStart) * 1000.0 / cv::getTickFrequency());
 	const char *teacherStrideText = std::getenv("BIT_POSE_TEACHER_STRIDE");
 	const int teacherStride = teacherStrideText ? std::atoi(teacherStrideText) : 0;
 	if (teacherStride > 0 && currData->index % teacherStride == 0)
@@ -338,12 +421,16 @@ void SummerTracker::Estimate()
 					++dataGroup.pose_teacher_ablation_probes;
 				}
 
-		const int signs[4][6] = {
-			{1, 1, 1, 1, 1, 1}, {1, -1, 1, -1, 1, -1},
-			{-1, 1, 1, 1, -1, -1}, {1, 1, -1, -1, -1, 1}};
+		const int signs[12][6] = {
+			{1, 1, 1, 1, 1, 1}, {1, 1, -1, 1, -1, -1},
+			{1, -1, 1, -1, 1, -1}, {1, -1, -1, -1, -1, 1},
+			{1, 1, 1, -1, -1, -1}, {1, 1, -1, -1, 1, 1},
+			{-1, -1, -1, -1, -1, -1}, {-1, -1, 1, -1, 1, 1},
+			{-1, 1, -1, 1, -1, 1}, {-1, 1, 1, 1, 1, -1},
+			{-1, -1, -1, 1, 1, 1}, {-1, -1, 1, 1, -1, -1}};
 		const float invSqrtThree = 1.0f / std::sqrt(3.0f);
 		for (int radius = 0; radius < 3; ++radius)
-			for (int pattern = 0; pattern < 4; ++pattern)
+			for (int pattern = 0; pattern < 12; ++pattern)
 			{
 				cv::Matx61f perturbation = cv::Matx61f::zeros();
 				for (int axis = 0; axis < 3; ++axis)
