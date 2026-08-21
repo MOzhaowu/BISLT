@@ -1,5 +1,9 @@
 # 阶段3：位姿不确定性实施与验收计划
 
+> 本文保留阶段3首轮实验的历史结论。q_pose最终冻结状态、三seed重跑、
+> 128帧教师消融、置信椭球覆盖率与运行开销以
+> [STAGE3_QPOSE_FREEZE_REPORT.md](STAGE3_QPOSE_FREEZE_REPORT.md) 为准。
+
 日期：2026-08-21
 
 ## 当前审计结论

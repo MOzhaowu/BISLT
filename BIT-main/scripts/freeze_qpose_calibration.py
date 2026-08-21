@@ -12,7 +12,7 @@ import numpy as np
 
 from fit_pose_uncertainty_nested_loso import MODELS
 from fit_stage2_mask_nested_loso import (
-    choose_l2, fit, labels, metrics, predict,
+    choose_l2, evaluate, fit, labels, metrics, predict,
 )
 
 
@@ -130,6 +130,60 @@ def sequence_bootstrap(predictions, bins, replicates, seed):
     }
 
 
+def paired_sequence_bootstrap(
+        selected, baseline, bins, replicates, seed):
+    def key(row):
+        return (
+            row["object"], row["sequence"], int(row["seed"]),
+            int(row["frame_index"]),
+        )
+
+    baseline_by_key = {key(row): row for row in baseline}
+    groups = {}
+    for row in selected:
+        groups.setdefault(row["held_out_sequence"], []).append(
+            (row, baseline_by_key[key(row)]))
+    keys = sorted(groups)
+    rng = np.random.default_rng(seed)
+    metric_names = ("auroc", "ece", "log_loss")
+    deltas = {name: [] for name in metric_names}
+    point = {}
+    for _ in range(replicates):
+        chosen = rng.choice(keys, size=len(keys), replace=True)
+        pairs = [pair for group in chosen for pair in groups[group]]
+        selected_result = metrics(
+            [pair[0]["failure_label"] for pair in pairs],
+            [pair[0]["failure_probability"] for pair in pairs], bins)
+        baseline_result = metrics(
+            [pair[1]["failure_label"] for pair in pairs],
+            [pair[1]["failure_probability"] for pair in pairs], bins)
+        for name in metric_names:
+            if selected_result[name] is not None and baseline_result[name] is not None:
+                deltas[name].append(selected_result[name] - baseline_result[name])
+    selected_result = metrics(
+        [row["failure_label"] for row in selected],
+        [row["failure_probability"] for row in selected], bins)
+    baseline_result = metrics(
+        [row["failure_label"] for row in baseline],
+        [row["failure_probability"] for row in baseline], bins)
+    for name in metric_names:
+        if selected_result[name] is not None and baseline_result[name] is not None:
+            point[name] = selected_result[name] - baseline_result[name]
+    return {
+        "baseline": "initial_median_covariance_trace",
+        "delta_definition": "strict-selected minus baseline",
+        "point_delta": point,
+        "sequence_bootstrap_delta_95": {
+            name: {
+                "lower": float(np.percentile(values, 2.5)),
+                "median": float(np.percentile(values, 50.0)),
+                "upper": float(np.percentile(values, 97.5)),
+            }
+            for name, values in deltas.items() if values
+        },
+    }
+
+
 def serializable_model(model):
     return {
         name: value.tolist() if isinstance(value, np.ndarray) else value
@@ -169,8 +223,34 @@ def main():
         predictions, args.bins, args.bootstrap_replicates,
         args.bootstrap_seed,
     )
+    baseline_evaluation, baseline_predictions = evaluate(
+        groups, MODELS["initial_median_covariance_trace"],
+        "failure_5deg_50mm", l2_values, args.bins,
+        group_balanced=args.group_balanced,
+    )
+    baseline_evaluation["sequence_bootstrap"] = sequence_bootstrap(
+        baseline_predictions, args.bins, args.bootstrap_replicates,
+        args.bootstrap_seed,
+    )
+    evaluation["baseline_initial_median_covariance_trace"] = baseline_evaluation
+    evaluation["paired_improvement_bootstrap"] = paired_sequence_bootstrap(
+        predictions, baseline_predictions, args.bins,
+        args.bootstrap_replicates, args.bootstrap_seed,
+    )
     selected_name, selected_l2, full_selection = select_model(
         groups, l2_values, args.group_balanced)
+    if selected_name == "initial_median_covariance_trace":
+        frozen_evaluation = baseline_evaluation
+        frozen_predictions = baseline_predictions
+    else:
+        frozen_evaluation, frozen_predictions = evaluate(
+            groups, MODELS[selected_name], "failure_5deg_50mm",
+            l2_values, args.bins, group_balanced=args.group_balanced,
+        )
+        frozen_evaluation["sequence_bootstrap"] = sequence_bootstrap(
+            frozen_predictions, args.bins, args.bootstrap_replicates,
+            args.bootstrap_seed,
+        )
     final_model = fit(
         rows, MODELS[selected_name], "failure_5deg_50mm",
         selected_l2, args.group_balanced,
@@ -192,23 +272,29 @@ def main():
         "selected_l2": selected_l2,
         "full_inner_selection": full_selection,
         "model": serializable_model(final_model),
-        "evaluation": evaluation,
+        "frozen_model_evaluation": frozen_evaluation,
+        "adaptive_family_selection_ablation": evaluation,
     }
     args.output_dir.mkdir(parents=True, exist_ok=True)
     (args.output_dir / "q_pose_calibration_frozen.json").write_text(
         json.dumps(frozen, indent=2, ensure_ascii=False) + "\n")
-    with (args.output_dir / "q_pose_outer_loso_predictions.csv").open(
-            "w", newline="") as stream:
-        writer = csv.DictWriter(stream, fieldnames=list(predictions[0]))
-        writer.writeheader()
-        writer.writerows(predictions)
+    for filename, records in (
+            ("q_pose_frozen_model_oof_predictions.csv", frozen_predictions),
+            ("adaptive_family_selection_oof_predictions.csv", predictions)):
+        with (args.output_dir / filename).open("w", newline="") as stream:
+            writer = csv.DictWriter(stream, fieldnames=list(records[0]))
+            writer.writeheader()
+            writer.writerows(records)
     print(json.dumps({
         "selected_model": selected_name,
         "selected_l2": selected_l2,
-        **evaluation["overall_oof"],
-        "sequence_macro_auroc": evaluation["sequence_macro_auroc"],
-        "bootstrap_95": evaluation["sequence_bootstrap"][
+        **frozen_evaluation["overall_oof"],
+        "sequence_macro_auroc": frozen_evaluation[
+            "mixed_sequence_macro_auroc"],
+        "bootstrap_95": frozen_evaluation["sequence_bootstrap"][
             "confidence_intervals_95"],
+        "adaptive_family_selection_auroc": evaluation[
+            "overall_oof"]["auroc"],
     }, indent=2, ensure_ascii=False))
 
 

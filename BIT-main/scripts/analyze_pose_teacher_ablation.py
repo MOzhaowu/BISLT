@@ -66,6 +66,25 @@ def main():
             ),
         }
 
+    per_seed = {}
+    for seed in sorted({int(row["seed"]) for row in sampled}):
+        seed_rows = [row for row in sampled if int(row["seed"]) == seed]
+        per_seed[str(seed)] = {}
+        for field in RATE_FIELDS:
+            pairs = finite_pairs(seed_rows, args.proxy, field)
+            x = np.asarray([pair[0] for pair in pairs])
+            y = np.asarray([pair[1] for pair in pairs])
+            correlation = (
+                spearmanr(x, y).statistic if len(pairs) >= 2 else np.nan
+            )
+            per_seed[str(seed)][field] = {
+                "frames": len(pairs),
+                "mean_failure_rate": float(y.mean()) if len(y) else None,
+                "spearman_to_proxy": (
+                    float(correlation) if np.isfinite(correlation) else None
+                ),
+            }
+
     summary = {
         "schema_version": 1,
         "stage": 3,
@@ -76,6 +95,7 @@ def main():
         ),
         "proxy": args.proxy,
         "rates": rates,
+        "per_seed": per_seed,
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(summary, indent=2, ensure_ascii=False) + "\n")
