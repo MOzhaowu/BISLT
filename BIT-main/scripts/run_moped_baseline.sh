@@ -88,6 +88,8 @@ for config in "${configs[@]}"; do
             >"$run_dir/evaluation.log" 2>&1 && \
            "$python_bin" scripts/build_diagnostics.py "$run_dir" \
             >"$run_dir/diagnostics.log" 2>&1 && \
+           "$python_bin" scripts/label_mask_uncertainty.py "$run_dir" \
+            >"$run_dir/mask_uncertainty_labeling.log" 2>&1 && \
            "$python_bin" scripts/check_run_completeness.py "$run_dir" \
             >"$run_dir/completeness.json" 2>&1; then
             echo "[OK] $object/$sequence in $((end_epoch - start_epoch))s"

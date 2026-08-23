@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "frozen_at": "2026-08-22",
+  "development_commit": "2fa0e99476baa0f078687a58fde9078b7c1db770",
+  "models": {
+    "q_mask": {
+      "path": "baseline/moped/stage4_confirmation_protocol/q_mask_calibration_frozen.json",
+      "sha256": "e02cf699e6fbb95e1acb025256bc95ec18d5a7c84f506b6dfa7c84a6fbe35cd8"
+    },
+    "q_pose": {
+      "path": "baseline/moped/stage3_qpose_freeze_seed41_42/analysis/qpose_freeze/q_pose_calibration_frozen.json",
+      "sha256": "d503b40eb2aa35649d5639404e4df8e2c21fcf0ab845f22c051fccca9b237332"
+    }
+  },
+  "formula_implementation_sha256": "f921262d0db4a2533e3fbd3390c8dd52902f948f8065e56bb92fb916b7a44d42",
+  "primary_confirmation": {
+    "external_sequences": [
+      "duster/00",
+      "graphics_card/00",
+      "orange_drill/00",
+      "pouch/00",
+      "remote/00"
+    ],
+    "external_seeds": [41, 42, 43],
+    "target_sequences": ["duplo_dude/01", "toy_plane/02"],
+    "target_seeds": [44, 45, 46]
+  },
+  "fallback_confirmation": {
+    "sequences": [
+      "duster/02",
+      "graphics_card/02",
+      "orange_drill/02",
+      "pouch/02",
+      "remote/02"
+    ],
+    "seeds": [41, 42, 43],
+    "trigger_if": {
+      "aligned_post_warmup_frames_lt": 100,
+      "safe_frames_lt": 20,
+      "unsafe_frames_lt": 20
+    }
+  },
+  "methods": {
+    "mask_pose": {
+      "formula": "q_mask*q_pose",
+      "accept_threshold": 0.2361967829315,
+      "reject_threshold": 0.05407334316641414
+    },
+    "mask_pose_causal_visibility": {
+      "formula": "q_mask*q_pose*q_visibility_causal_relative",
+      "accept_threshold": 0.23215984252580965,
+      "reject_threshold": 0.04907133706907316
+    },
+    "mask_pose_causal_information": {
+      "formula": "q_mask*q_pose*q_information_causal_relative",
+      "accept_threshold": 0.20693127944817635,
+      "reject_threshold": 0.04282146603854668
+    }
+  },
+  "acceptance": {
+    "safe_reject_rate_max": 0.10,
+    "safe_nonaccept_rate_max": 0.50,
+    "candidate_protected_unsafe_recall_not_below_baseline": true,
+    "both_target_sequences_not_below_baseline": true,
+    "at_least_one_target_sequence_strictly_improved": true,
+    "target_seed_direction_consistent": true
+  }
+}
