@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "frozen_at": "2026-08-23",
+  "development_parent_commit": "0f62b064b0b9fdf43d7989639d64b3fcb97f9785",
+  "method": {
+    "name": "direct_pose_drawup_hierarchical_demotion",
+    "parent_decision": "stage4_confirmation_v1:q_mask*q_pose",
+    "allowed_transition": "accept_to_downweight_only",
+    "score": "max(0, logit_failure(q_pose_t) - min_prior_keyframe_logit_failure(q_pose))",
+    "score_field": "pose_risk_drawup",
+    "demotion_threshold": 0.08361776899461498,
+    "uses_current_and_past_only": true,
+    "learned_object_weights": false
+  },
+  "development": {
+    "frames": 131,
+    "unsafe": 87,
+    "safe": 44,
+    "sequence_loso_protected_unsafe_recall": 0.8390804595401149,
+    "sequence_loso_safe_reject_rate": 0.045454545454545456,
+    "sequence_loso_safe_nonaccept_rate": 0.45454545454545453,
+    "protected_unsafe_delta": 0.2298850574712643,
+    "protected_unsafe_delta_bootstrap_ci95": [0.06922413793103457, 0.4375]
+  },
+  "sha256": {
+    "implementation": "386f0c17f77894b1690d03027b325b9bedf7dc9e4841aac32e3bc60f017faad8",
+    "development_gate_csv": "4634b56b1598a32b02c88848b7ca3dbe7b540b16d07884b6193f99eae0b73046",
+    "development_pose_jsonl": "b30d19e47366da58c404857653f5c0e6669526ee7683e3937c59343d5ba5efb5",
+    "development_summary": "c0122920b9b28f3adb5110609abf22756301cb64f92d5af6bb64e58f45bd5ac1"
+  },
+  "reconfirmation": {
+    "target_sequences": ["duplo_dude/01", "toy_plane/02"],
+    "seeds": [53, 54, 55, 56, 57, 58],
+    "include_all_completed_seeds": true,
+    "minimum_mixed_label_seeds": 3,
+    "bootstrap_unit": "object_sequence_seed",
+    "bootstrap_replicates": 20000,
+    "bootstrap_seed": 20260823
+  },
+  "acceptance": {
+    "safe_reject_rate_max": 0.10,
+    "safe_nonaccept_rate_max": 0.50,
+    "protected_unsafe_recall_not_below_parent": true,
+    "both_target_sequences_not_below_parent": true,
+    "at_least_one_target_sequence_strictly_improved": true,
+    "mixed_label_seed_direction_consistent": true,
+    "bootstrap_no_significant_reverse_change": true
+  }
+}

@@ -32,6 +32,30 @@ FEATURE_SETS = {
         "visibility_drawdown",
         "information_drawdown",
     ],
+    "causal_risk_drawup": [
+        "base_risk_drawup",
+    ],
+    "causal_risk_context": [
+        "base_risk_drawup",
+        "visibility_drawdown",
+        "information_drawdown",
+    ],
+    "causal_pose_drawup": [
+        "pose_risk_drawup",
+    ],
+    "causal_pose_context": [
+        "pose_risk_drawup",
+        "visibility_drawdown",
+        "information_drawdown",
+    ],
+    "dense_pose_percentile": [
+        "dense_pose_risk_percentile",
+    ],
+    "dense_pose_context": [
+        "dense_pose_risk_percentile",
+        "dense_pose_risk_robust_z",
+        "dense_pose_risk_drawup",
+    ],
     "base_local_residual": [
         "base_risk_logit",
         "log_contour_noise_variance",
@@ -57,6 +81,13 @@ FEATURE_SETS = {
     ],
 }
 
+DIRECT_SCORE_SETS = {
+    "direct_pose_drawup": "pose_risk_drawup",
+    "direct_visibility_drawdown": "visibility_drawdown",
+    "direct_information_drawdown": "information_drawdown",
+    "direct_dense_pose_percentile": "dense_pose_risk_percentile",
+}
+
 
 def sequence_key(row):
     return f"{row['object']}/{str(row['sequence']).zfill(2)}"
@@ -75,18 +106,70 @@ def finite(value, default=0.0):
     return value if math.isfinite(value) else default
 
 
+def add_causal_risk_features(rows):
+    """Add run-relative q_base risk changes using no future observations."""
+    state = {}
+    for row in sorted(rows, key=lambda item: (
+            item["object"], item["sequence"], item["seed"],
+            item["frame_index"])):
+        run = (row["object"], row["sequence"], row["seed"])
+        risk = row["base_risk_logit"]
+        pose_risk = row.get("pose_risk_logit", risk)
+        if run not in state:
+            state[run] = {"first": risk, "minimum": risk,
+                          "pose_first": pose_risk, "pose_minimum": pose_risk}
+        row["base_risk_delta_from_first"] = risk-state[run]["first"]
+        row["base_risk_drawup"] = max(0.0, risk-state[run]["minimum"])
+        row["pose_risk_delta_from_first"] = pose_risk-state[run]["pose_first"]
+        row["pose_risk_drawup"] = max(
+            0.0, pose_risk-state[run]["pose_minimum"])
+        state[run]["minimum"] = min(state[run]["minimum"], risk)
+        state[run]["pose_minimum"] = min(state[run]["pose_minimum"], pose_risk)
+    return rows
+
+
+def add_dense_pose_context(rows):
+    """Add run-adaptive pose features using strictly preceding dense frames."""
+    histories = defaultdict(list)
+    feature = "log_normalized_covariance_trace_relative_to_initial_median"
+    for row in sorted(rows, key=lambda item: (
+            item["object"], str(item["sequence"]).zfill(2), item["seed"],
+            item["frame_index"])):
+        run = (row["object"], str(row["sequence"]).zfill(2), row["seed"])
+        value = finite(row.get(feature))
+        history = histories[run]
+        if history:
+            values = np.asarray(history, dtype=float)
+            median = float(np.median(values))
+            mad = float(np.median(np.abs(values-median)))
+            scale = max(1.4826*mad, 1e-6)
+            row["dense_pose_risk_percentile"] = (
+                sum(previous <= value for previous in history)+0.5
+            )/(len(history)+1.0)
+            row["dense_pose_risk_robust_z"] = float(np.clip(
+                (value-median)/scale, -20.0, 20.0))
+            row["dense_pose_risk_drawup"] = max(0.0, value-min(history))
+        else:
+            row["dense_pose_risk_percentile"] = 0.5
+            row["dense_pose_risk_robust_z"] = 0.0
+            row["dense_pose_risk_drawup"] = 0.0
+        history.append(value)
+    return rows
+
+
 def load_rows(confirmation_csv, pose_jsonl):
-    pose = {}
+    pose_rows = []
     with pose_jsonl.open() as stream:
         for line in stream:
             if line.strip():
-                row = json.loads(line)
-                pose[frame_key(row)] = row
+                pose_rows.append(json.loads(line))
+    pose = {frame_key(row): row for row in add_dense_pose_context(pose_rows)}
 
     rows = []
     with confirmation_csv.open(newline="") as stream:
         for source in csv.DictReader(stream):
             key = frame_key(source)
+            q_pose = np.clip(float(source["q_pose"]), 1e-8, 1-1e-8)
             if key not in pose:
                 raise ValueError(f"missing pose diagnostics for {key}")
             diagnostic = pose[key]
@@ -98,6 +181,7 @@ def load_rows(confirmation_csv, pose_jsonl):
                 "object": source["object"],
                 "sequence": str(source["sequence"]).zfill(2),
                 "seed": int(source["seed"]),
+                "pose_risk_logit": float(np.log((1-q_pose)/q_pose)),
                 "frame_index": int(source["frame_index"]),
                 "unsafe_observation": int(source["unsafe_observation"]),
                 "baseline_decision": source["mask_pose_decision"],
@@ -114,9 +198,15 @@ def load_rows(confirmation_csv, pose_jsonl):
                     "log_normalized_covariance_trace_relative_to_initial_median")),
                 "hessian_condition_relative_first": finite(diagnostic.get(
                     "log_normalized_hessian_condition_relative_to_first")),
+                "dense_pose_risk_percentile": finite(
+                    diagnostic.get("dense_pose_risk_percentile"), 0.5),
+                "dense_pose_risk_robust_z": finite(
+                    diagnostic.get("dense_pose_risk_robust_z")),
+                "dense_pose_risk_drawup": finite(
+                    diagnostic.get("dense_pose_risk_drawup")),
             }
             rows.append(row)
-    return rows
+    return add_causal_risk_features(rows)
 
 
 def decision_metrics(rows, decision_field="decision"):
@@ -230,6 +320,31 @@ def nested_loso(rows, features, l2_candidates, max_safe_nonaccept):
     return predictions, folds
 
 
+def direct_score_loso(rows, score_field, max_safe_nonaccept):
+    """Evaluate a directed causal risk score without fitting object weights."""
+    groups = defaultdict(list)
+    for row in rows:
+        groups[sequence_key(row)].append(row)
+    predictions, folds = [], {}
+    for held_out, test in sorted(groups.items()):
+        training = [row for key, group in groups.items() if key != held_out
+                    for row in group]
+        training_scores = [row[score_field] for row in training]
+        threshold, training_metrics = select_demotion_threshold(
+            training, training_scores, max_safe_nonaccept)
+        fold_predictions = apply_demotion(
+            test, [row[score_field] for row in test], threshold)
+        predictions.extend(fold_predictions)
+        folds[held_out] = {
+            "score_field": score_field,
+            "selected_demotion_threshold": threshold,
+            "training_metrics": training_metrics,
+            "test_metrics": decision_metrics(fold_predictions),
+        }
+    return predictions, folds
+
+
+
 def summarize(rows):
     metrics = decision_metrics(rows)
     metrics["risk_auroc"] = binary_auroc(
@@ -262,6 +377,20 @@ def main():
         variants[name] = {"features": features, "metrics": summarize(predictions),
                           "folds": folds}
         with (args.output_dir/f"{name}_nested_loso_frames.csv").open(
+                "w", newline="") as stream:
+            writer = csv.DictWriter(stream, fieldnames=list(predictions[0]))
+            writer.writeheader()
+            writer.writerows(predictions)
+
+    for name, score_field in DIRECT_SCORE_SETS.items():
+        predictions, folds = direct_score_loso(
+            rows, score_field, args.max_safe_nonaccept)
+        variants[name] = {
+            "score_field": score_field,
+            "metrics": summarize(predictions),
+            "folds": folds,
+        }
+        with (args.output_dir/f"{name}_loso_frames.csv").open(
                 "w", newline="") as stream:
             writer = csv.DictWriter(stream, fieldnames=list(predictions[0]))
             writer.writeheader()
