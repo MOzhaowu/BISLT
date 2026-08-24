@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-08-24",
+  "stage": "stage4_p3",
+  "status": "teacher_sequence_expansion_frozen",
+  "parent_dataset_protocol_sha256": "4e4ee9b9e44c028e63dc9de25c8cb57d3cf6d06da6942b2102d4b4103437f6a6",
+  "reason": "the first strict LOSO student baseline has only two sequence groups and fails both student heads",
+  "existing_teacher_groups": [
+    "duplo_dude/01",
+    "toy_plane/02"
+  ],
+  "development_expansion": {
+    "seeds": [71, 72, 73],
+    "groups": [
+      "black_drill/00",
+      "cheezit/00",
+      "cheezit/02",
+      "cheezit/04",
+      "duplo_dude/02",
+      "toy_plane/03"
+    ],
+    "include_every_completed_run_regardless_of_label_balance": true,
+    "minimum_total_sequence_groups": 8,
+    "purpose": "teacher dataset expansion and nested LOSO student development"
+  },
+  "formula_confirmation": {
+    "seeds": [74, 75, 76],
+    "groups": [
+      "black_drill/00",
+      "cheezit/00",
+      "cheezit/02",
+      "cheezit/04",
+      "duplo_dude/01",
+      "duplo_dude/02",
+      "toy_plane/02",
+      "toy_plane/03"
+    ],
+    "locked_until_student_features_model_family_regularization_and_thresholds_are_frozen": true
+  },
+  "external_independent_validation": {
+    "seeds": [77, 78, 79],
+    "groups": [
+      "duster/00",
+      "graphics_card/00",
+      "orange_drill/00",
+      "pouch/00",
+      "remote/00"
+    ],
+    "locked_until_formula_confirmation_passes": true
+  },
+  "event_inclusion": {
+    "require_candidate_version_greater_than_one": true,
+    "require_validation_pose_signature": true,
+    "do_not_replace_zero_event_runs": true,
+    "do_not_select_sequences_or_seeds_after_viewing_student_performance": true
+  },
+  "student_development_gate": {
+    "minimum_sequence_groups_with_events": 6,
+    "minimum_observations": 100,
+    "both_keep_drop_labels_required_in_at_least_groups": 4,
+    "both_full_safe_harmful_labels_required_in_at_least_groups": 4,
+    "nested_sequence_loso_required": true
+  }
+}
