@@ -6,7 +6,10 @@ from pathlib import Path
 PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT / "scripts"))
 
-from build_stage4_p3_teacher_dataset import build_event
+from build_stage4_p3_teacher_dataset import (
+    build_event,
+    seed_set_valid,
+)
 
 
 class Stage4P3TeacherDatasetTests(unittest.TestCase):
@@ -87,6 +90,13 @@ class Stage4P3TeacherDatasetTests(unittest.TestCase):
         self.row["loo_marginal_utilities"] = [0.1]
         with self.assertRaisesRegex(ValueError, "differ in length"):
             build_event(self.row, {}, {}, self.protocol)
+
+    def test_zero_event_seed_is_allowed_only_when_explicit(self):
+        self.assertFalse(seed_set_valid([80, 82], [80, 81, 82]))
+        self.assertTrue(seed_set_valid(
+            [80, 82], [80, 81, 82], allow_zero_event_seeds=True))
+        self.assertFalse(seed_set_valid(
+            [80, 83], [80, 81, 82], allow_zero_event_seeds=True))
 
 
 if __name__ == "__main__":

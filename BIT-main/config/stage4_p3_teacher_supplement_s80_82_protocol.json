@@ -1,0 +1,122 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-08-24",
+  "stage": "stage4_p3",
+  "status": "preregistered_not_started",
+  "objective": "obtain within-sequence full-safe/full-harmful label variation in at least two currently single-label groups without opening locked seeds",
+  "parent": {
+    "combined_teacher_dataset": "baseline/moped/stage4_p3_distillation/combined_s59_73/teacher_events.jsonl",
+    "combined_teacher_dataset_sha256": "205790ec216aeb49f6586d632bc432ebc429e4d1788ca388f70f25fe595c8a2e",
+    "quality_audit": "baseline/moped/stage4_p3_distillation/combined_s59_73/quality_audit.json",
+    "quality_audit_sha256": "74b202202a96a9edffab446d6fc9b12ca03f27da885eadaaf3bbec83e1e2ba27",
+    "base_protocol_sha256": "4e4ee9b9e44c028e63dc9de25c8cb57d3cf6d06da6942b2102d4b4103437f6a6",
+    "expansion_protocol_sha256": "bd1481cafb85578e67a6574a0d831adbdcba32e744689d9bfe12be1c32a2d0a9",
+    "observed_mixed_groups": [
+      "duplo_dude/01",
+      "toy_plane/02"
+    ]
+  },
+  "supplement_design": {
+    "development_seeds": [80, 81, 82],
+    "groups": [
+      "black_drill/00",
+      "cheezit/00",
+      "cheezit/02",
+      "cheezit/04",
+      "duplo_dude/02",
+      "toy_plane/03"
+    ],
+    "planned_runs": 18,
+    "run_every_group_seed_pair": true,
+    "no_early_stopping_after_intermediate_labels": true,
+    "include_every_completed_run_regardless_of_label_balance": true,
+    "zero_event_runs_are_retained_and_not_replaced": true,
+    "technical_retry_policy": "retry only the identical group/seed after a runtime or completeness failure; never replace it with another seed",
+    "student_fitting_during_supplement": false
+  },
+  "label_targets_fixed_before_capture": {
+    "currently_harmful_only_require_at_least_one_safe_event": [
+      "black_drill/00",
+      "cheezit/00",
+      "cheezit/02"
+    ],
+    "currently_safe_only_require_at_least_one_harmful_event": [
+      "cheezit/04",
+      "duplo_dude/02",
+      "toy_plane/03"
+    ],
+    "opposite_label_definition": "the combined pre-supplement plus supplement events contain both values of full_harmful_vs_stable for the same object/sequence group"
+  },
+  "frozen_teacher": {
+    "policy": "p1v2_short_loo_control_iou_distillation_supplement_s80_82",
+    "proposal_steps": 200,
+    "pose_consistency_weight": 1.0,
+    "temporal_stability_weight": 1.0,
+    "control_iou_weight": 1.0,
+    "pose_probe_interval": 1,
+    "regularization_scope": "validation_control_frames",
+    "candidate_optimizer": "constrained_projection",
+    "projection_primary": "validation_control_iou",
+    "projection_cycles": 20,
+    "constraint_activation_epsilon": 1e-8,
+    "dual_reference_steps": 25,
+    "source_hashes": {
+      "stage4_p2_control_iou_projection_frozen.json": "107b1e10d3c2570b10f744c8a01dee6084d18c3016f63f46518a9fd0aebc2e77",
+      "stage4_p1v2_reconfirmation.json": "9af52a62626364f85365fe79a2408e6bb8eb9404ac374f4cf96a94776fa5d835",
+      "run_stage4_p2_replay_capture.sh": "89717155abdfe6662b4d5dafd2a127862097de959f2f479cba6414df5a2cfb97",
+      "replay_stage4_p2_geometry.py": "0e19ccdd6739a6fbebe1caccc755e9e8613fc16d074e703d5696420a3116677a",
+      "apply_stage4_p2_multimetric_trust_region.py": "6eb4d217f0792d88b75fa94effc15f9b864086f7e3d2d3c582d2108b3bc3edd1",
+      "build_stage4_p3_teacher_dataset.py": "03823d714a6ac99513903f3701894184301d689fe5d0d9b8a20b39f60ee5c884",
+      "audit_stage4_p3_teacher_dataset.py": "e11640d68b5f00016c223256a6895d7977d1eb33397a2d7d38746512d14daaa1",
+      "audit_stage4_p3_teacher_supplement.py": "7e38a93ff0fbca3859bdce4c59b843a70515ee0582fa61a9aff017f9ee78bbf4",
+      "run_stage4_p3_teacher_supplement_s80_82.sh": "c224306215d460787eb299aa21a0129316dfd18bcc416946bcc9f5818742b619"
+    }
+  },
+  "event_inclusion": {
+    "require_candidate_version_greater_than_one": true,
+    "require_validation_pose_signature": true,
+    "do_not_remove_events_to_improve_balance": true,
+    "do_not_change_full_harmful_vs_stable_definition": true
+  },
+  "causal_feature_policy": {
+    "preserve_all_teacher_observations": true,
+    "allow_explicit_missing_anchor_features": true,
+    "allow_explicit_missing_pose_warmup_features": true,
+    "pose_warmup_frames_per_run": 5,
+    "future_frame_imputation_forbidden": true,
+    "fold_local_imputation_only_after_development_gate_passes": true,
+    "report_feature_availability_and_missing_reason_counts": true
+  },
+  "primary_acceptance": {
+    "newly_mixed_previously_single_label_groups_min": 2,
+    "total_groups_with_both_full_safe_harmful_min": 4,
+    "all_18_planned_runs_accounted_for": true,
+    "no_locked_seed_leakage": true
+  },
+  "retained_student_development_gate": {
+    "minimum_sequence_groups_with_events": 6,
+    "minimum_observations": 100,
+    "both_keep_drop_labels_required_in_at_least_groups": 4,
+    "both_full_safe_harmful_labels_required_in_at_least_groups": 4,
+    "nested_sequence_loso_required": true
+  },
+  "locked_sets": {
+    "previous_p2_report_only_seeds": [68, 69, 70],
+    "formula_confirmation_seeds": [74, 75, 76],
+    "external_independent_seeds": [77, 78, 79],
+    "seed_74_79_files_present_at_preregistration": false,
+    "seed_74_79_must_not_be_captured_read_or_evaluated_before_student_formula_freeze": true
+  },
+  "decision_after_supplement": {
+    "if_all_gates_pass": "freeze the combined development dataset hash, then run nested sequence LOSO student development",
+    "if_any_gate_fails": "publish the failure result and write a new protocol before any further development sampling; keep seeds 74-79 locked",
+    "student_metrics_cannot_change_this_supplement_acceptance": true
+  },
+  "planned_outputs": {
+    "capture_root": "baseline/moped/stage4_p3_distillation/supplement_s80_82/capture",
+    "analysis_root": "baseline/moped/stage4_p3_distillation/supplement_s80_82/analysis",
+    "teacher_dataset": "baseline/moped/stage4_p3_distillation/supplement_s80_82/analysis/teacher_events.jsonl",
+    "combined_dataset": "baseline/moped/stage4_p3_distillation/combined_s59_82/teacher_events.jsonl",
+    "quality_audit": "baseline/moped/stage4_p3_distillation/combined_s59_82/quality_audit.json"
+  }
+}

@@ -42,6 +42,12 @@ def load_jsonl(path):
         if line.strip()]
 
 
+def seed_set_valid(observed, expected, allow_zero_event_seeds=False):
+    return (set(observed).issubset(expected)
+            if allow_zero_event_seeds
+            else sorted(observed) == sorted(expected))
+
+
 def finite_float(row, field):
     value = float(row[field])
     if not np.isfinite(value):
@@ -156,6 +162,10 @@ def main():
     parser.add_argument("parent_gate", type=Path)
     parser.add_argument("protocol", type=Path)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--allow-zero-event-seeds", action="store_true",
+        help="Allow expected seeds with no teacher events; run completeness "
+             "must be audited separately.")
     args = parser.parse_args()
 
     protocol = json.loads(args.protocol.read_text())
@@ -176,7 +186,9 @@ def main():
         raise ValueError("no frozen teacher rows")
     observed_seeds = sorted({int(row["seed"]) for row in rows})
     expected_seeds = sorted(protocol["teacher"]["development_seeds"])
-    if observed_seeds != expected_seeds:
+    if not seed_set_valid(
+            observed_seeds, expected_seeds,
+            allow_zero_event_seeds=args.allow_zero_event_seeds):
         raise ValueError(
             f"teacher seeds differ: {observed_seeds} != {expected_seeds}")
     locked = set(protocol["teacher"]["locked_report_only_seeds"])
