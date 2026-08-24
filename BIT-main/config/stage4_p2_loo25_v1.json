@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "frozen_at": "2026-08-23",
+  "stage": "stage4_p2",
+  "status": "exploratory_independent_validation",
+  "method": {
+    "name": "short_horizon_leave_one_out_softmax",
+    "short_steps": 25,
+    "utility": "validation_iou_loss(leave_one_out_i)-validation_iou_loss(full)",
+    "weight": "exp((utility-max_utility)/max(MAD(utility),1e-8))",
+    "parent_reject_locked_zero": true,
+    "full_optimization_steps": 200,
+    "learned_object_weights": false
+  },
+  "development": {
+    "sequences": ["duplo_dude/01", "toy_plane/02"],
+    "seeds": [59, 60, 61, 62, 63, 64],
+    "events": 15,
+    "optimized_events": 13,
+    "blocked_events": 2,
+    "improved_events": 5,
+    "mean_iou_loss_delta_vs_original": -0.00036887480662419245,
+    "mean_pose_inconsistency_delta": -0.0005481,
+    "mean_temporal_std_delta": -0.00131053,
+    "direction_consistent_seeds": [59, 60, 64],
+    "development_pass": false
+  },
+  "independent_validation": {
+    "sequences": ["duplo_dude/01", "toy_plane/02"],
+    "seeds": [65, 66, 67],
+    "frozen_before_execution": true,
+    "no_retuning": true
+  },
+  "acceptance": {
+    "mean_iou_loss_delta_vs_original_max": 0.0,
+    "improved_event_fraction_min": 0.6666666666666666,
+    "mean_pose_inconsistency_delta_max": 0.0,
+    "mean_temporal_std_delta_max": 0.0,
+    "safe_reject_rate_max": 0.10,
+    "safe_nonaccept_rate_max": 0.50,
+    "seed_direction_consistent": true
+  },
+  "sha256": {
+    "influence_implementation": "609fbc8875f6fb19466ba5eed77d351113852b997a3a0e214542241610274b55",
+    "geometry_replay": "db395177cb5d3f591cf7a1e6ed61e2f0e4ef50f3676bdab4e4a7de4cafd2adc7",
+    "development_results": "fa0b9dafba7e920dfcfe768a2907befeaad04fbfc0afd59f5030b5967601ed8d",
+    "parent_policy": "9af52a62626364f85365fe79a2408e6bb8eb9404ac374f4cf96a94776fa5d835"
+  }
+}

@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-08-23",
+  "stage": "stage4_p2",
+  "status": "screening_rejected_not_advanced",
+  "method": {
+    "name": "support_frame_pose_temporal_candidate_regularization",
+    "optimized_candidate": "loo_filtered",
+    "untouched_candidates": ["stable", "full"],
+    "objective": "weighted_iou + 0.1*laplacian + lambda_pose*q_pose_support + lambda_temporal*std_iou_support",
+    "pose_term": "mean relu(nominal_iou_loss - min_12_se3_perturbed_iou_loss)",
+    "temporal_term": "weighted population std of per-support-frame iou loss",
+    "validation_is_held_out_from_optimization": true,
+    "rotation_delta_deg": 2.0,
+    "translation_delta": 0.005
+  },
+  "screening": {
+    "sequences": ["duplo_dude/01", "toy_plane/02"],
+    "seeds": [59, 60, 61, 62, 63, 64],
+    "proposal_steps": 25,
+    "pose_probe_interval": 5,
+    "arms": {
+      "control": {
+        "pose_weight": 0.0,
+        "temporal_weight": 0.0
+      },
+      "joint_equal_weight": {
+        "pose_weight": 1.0,
+        "temporal_weight": 1.0
+      }
+    },
+    "advance_condition": {
+      "loo_feasible_events_not_less_than_control": true,
+      "mean_loo_pose_inconsistency_not_greater_than_control": true,
+      "mean_loo_temporal_std_not_greater_than_control": true
+    }
+  },
+  "full_development_validation": {
+    "run_only_after_screening_pass": true,
+    "proposal_steps": 200,
+    "pose_probe_interval": 1,
+    "acceptance_protocol": "config/stage4_p2_multimetric_trust_region_protocol.json"
+  },
+  "independent_validation": {
+    "seeds": [68, 69, 70],
+    "run_only_after_full_development_pass": true
+  },
+  "screening_result": {
+    "loo_events": 9,
+    "control_feasible_events": 4,
+    "joint_feasible_events": 4,
+    "mean_iou_delta_vs_control": 0.00044019354714287654,
+    "mean_pose_delta_vs_control": 0.00011626548237270779,
+    "mean_temporal_delta_vs_control": 0.0001919220926033126,
+    "advance": false
+  },
+  "sha256": {
+    "regularizer_implementation": "9910e992a86c0742be35d22bbf879f2e4a63378ce1dbb12a120a3206de2ca5ea",
+    "geometry_replay": "dedb04ceb57945a380f6ae51852a2ff01dcbc3ecc9e17e469103f62c17f55a57",
+    "multimetric_selector": "6eb4d217f0792d88b75fa94effc15f9b864086f7e3d2d3c582d2108b3bc3edd1",
+    "acceptance_protocol": "5c6eec333fafc4bbc27d93ffe07460577440fac89fcfab69ded1d39a1657cc27",
+    "frozen_gate": "9af52a62626364f85365fe79a2408e6bb8eb9404ac374f4cf96a94776fa5d835",
+    "dual_reference_results": "6860f4b8fec96897f803d167b4937eb5cb0bd37d5f00609c35a15c7ae81137c2",
+    "candidate_frames": "262dbcc496bc82782beb91a3b0bca8963672d5979131497f1bcb9cc1d963e7c6",
+    "parent_frames": "f4353a4d7e70e78949f8a67e8aa75089e0883f1ef94f5c923e8955960dec6bb1",
+    "control_results": "34e1323bc49ca162b6f6250a838e6635c8f5ebd9a3e6f8610a88206e2e375bd9",
+    "joint_results": "a18c1643349efd1901f4331f9b1c24a6ae1ad65e745c2805a95b4ebda9f2f339"
+  }
+}

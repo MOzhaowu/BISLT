@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-08-23",
+  "stage": "stage4_p2",
+  "status": "development_rejected_not_frozen",
+  "protocol": "config/stage4_p2_multimetric_trust_region_protocol.json",
+  "method": {
+    "name": "multimetric_dual_proposal_validation_trust_region",
+    "max_pose_regression_vs_full": 0.0,
+    "max_temporal_regression_vs_full": 0.0,
+    "selection": "minimum validation mean_iou_loss among feasible stable/full/loo candidates",
+    "full_always_feasible": true
+  },
+  "development": {
+    "seeds": [59, 60, 61, 62, 63, 64],
+    "events": 15,
+    "selection_counts": {"stable": 2, "full": 11, "loo": 2},
+    "improved_events": 4,
+    "improved_event_fraction": 0.26666666666666666,
+    "strictly_improved_seeds": [59, 60, 64],
+    "strict_seed_fraction": 0.5,
+    "mean_iou_loss_delta_vs_full": -0.00044985016187032065,
+    "bootstrap_iou_delta_ci95": [-0.001006819804509481, -0.00003806749979654948],
+    "mean_pose_inconsistency_delta_vs_full": -0.0000015556812286376954,
+    "mean_temporal_std_delta_vs_full": -0.00006042122840881348,
+    "eventwise_iou_regressions": 0,
+    "eventwise_pose_regressions": 0,
+    "eventwise_temporal_regressions": 0,
+    "stable_feasible_events": 2,
+    "loo_available_events": 9,
+    "loo_feasible_events": 3,
+    "development_pass": false
+  },
+  "failed_acceptance": {
+    "improved_event_fraction_min": {"required": 0.5, "observed": 0.26666666666666666},
+    "strict_seed_fraction_min": {"required": 0.6666666666666666, "observed": 0.5}
+  },
+  "decision": {
+    "freeze": false,
+    "run_seed_68_70": false,
+    "seed_68_70_status": "unused",
+    "promote_online": false
+  },
+  "sha256": {
+    "selector_implementation": "cd31f858cc33b89016f18cbd2d643d2ad2f8c68227d6f83068a9226c9cfaa3fd",
+    "postselection_script": "7527b94b7cc4c7bb6eba397b24b1143294eb701b77c3a5f352c8d6af1e5aa1d0",
+    "evaluator": "4b4a5f6061395f9f7d612e145a990db36ead09bf3e9d01f4e3823e9f8bfff450",
+    "protocol": "5c6eec333fafc4bbc27d93ffe07460577440fac89fcfab69ded1d39a1657cc27",
+    "development_results": "b5bf5233b0ca540e4c427ecb9b89ae2d92b21d9e8a3f8508b3082b5cc1ee128c",
+    "development_evaluation": "9426591996549902efb29e33e92459c89709b2558ebe6f5d5b265053fea26867"
+  }
+}

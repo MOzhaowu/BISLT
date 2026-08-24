@@ -1,0 +1,87 @@
+{
+  "checks": {
+    "all_projected_steps_feasible": true,
+    "loo_feasible_events": true,
+    "multimetric_evaluation": true
+  },
+  "evaluation": {
+    "acceptance_checks": {
+      "bootstrap_iou_upper_bound": true,
+      "improved_event_fraction": true,
+      "iou_eventwise_nonregression": true,
+      "mean_iou_loss": true,
+      "pose_eventwise_nonregression": true,
+      "pose_inconsistency": true,
+      "safe_nonaccept_rate": true,
+      "safe_reject_rate": true,
+      "seed_nonregression": true,
+      "strict_seed_fraction": true,
+      "temporal_eventwise_nonregression": true,
+      "temporal_stability": true
+    },
+    "by_seed": {
+      "59": {
+        "events": 2,
+        "improved_events": 2,
+        "mean_iou_loss_delta": -0.0024874210357666016
+      },
+      "60": {
+        "events": 3,
+        "improved_events": 2,
+        "mean_iou_loss_delta": -0.005638808012008667
+      },
+      "61": {
+        "events": 3,
+        "improved_events": 2,
+        "mean_iou_loss_delta": -0.0061645905176798505
+      },
+      "62": {
+        "events": 3,
+        "improved_events": 1,
+        "mean_iou_loss_delta": -0.003314932187398275
+      },
+      "63": {
+        "events": 2,
+        "improved_events": 2,
+        "mean_iou_loss_delta": -0.0059453994035720825
+      },
+      "64": {
+        "events": 2,
+        "improved_events": 1,
+        "mean_iou_loss_delta": -0.0031761080026626587
+      }
+    },
+    "events": 15,
+    "improved_iou_events": 10,
+    "mean_deltas": {
+      "mean_iou_loss": -0.0045715232690175375,
+      "pose_inconsistency": -0.0008610036689788103,
+      "temporal_std": -0.002958130502762894,
+      "uncertainty": 0.0009916809697945912
+    },
+    "mean_iou_delta_bootstrap_ci95": [
+      -0.006874134590228399,
+      -0.002461735407511393
+    ]
+  },
+  "mode": "development",
+  "pass": true,
+  "projection": {
+    "all_projected_steps_feasible": true,
+    "events": 15,
+    "loo_feasible_events": 9,
+    "loo_proposals": 9,
+    "optimizer_steps": 1800,
+    "pose_active_steps": 40,
+    "projected_steps": 45,
+    "temporal_active_steps": 21
+  },
+  "schema_version": 1,
+  "sha256": {
+    "evaluation": "ee4b7c8ce719fa17fab677e3417983822dd6f90c9b70e86a9d10b25e55e1f3cb",
+    "protocol": "3054248cc0277e06e7804649089b0232adfb932b4e4801a5406f94a1c0405c34",
+    "replay": "06c0a3ae7dc9eb665de0d65af1342d2f8338ba7996561fcec77757316fdaaa7e"
+  },
+  "stage": "stage4_p2",
+  "status": "frozen_development_pass"
+}

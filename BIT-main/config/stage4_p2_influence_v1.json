@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "frozen_at": "2026-08-23",
+  "stage": "stage4_p2",
+  "method": {
+    "name": "first_order_validation_gradient_rescue",
+    "base_policy": "p1v2_soft",
+    "influence": "cosine(grad_validation_iou, grad_observation_iou)",
+    "first_order_semantics": "delta_validation_loss ~= -learning_rate * dot(grad_validation, grad_observation)",
+    "margin": 0.0,
+    "eligible_transition": "parent_accept_and_p1v2_downweight_to_weight_1",
+    "parent_reject_override": false,
+    "uses_stable_geometry_only": true,
+    "learned_object_weights": false
+  },
+  "development": {
+    "sequences": ["duplo_dude/01", "toy_plane/02"],
+    "seeds": [59, 60, 61],
+    "purpose": "implementation validation and method ablation only"
+  },
+  "independent_validation": {
+    "sequences": ["duplo_dude/01", "toy_plane/02"],
+    "seeds": [62, 63, 64],
+    "frozen_before_execution": true
+  },
+  "acceptance": {
+    "mean_iou_loss_delta_vs_original_max": 0.0,
+    "improved_event_fraction_min": 0.6666666666666666,
+    "mean_pose_inconsistency_delta_max": 0.0,
+    "mean_temporal_std_delta_max": 0.0,
+    "safe_reject_rate_max": 0.10,
+    "safe_nonaccept_rate_max": 0.50,
+    "unsafe_exposure_reduction_min": 0.50,
+    "seed_direction_consistent": true
+  }
+}

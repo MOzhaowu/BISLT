@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-08-23",
+  "stage": "stage4_p2",
+  "status": "development_partial_pass_not_frozen",
+  "method": {
+    "name": "short_loo_dual_proposal_validation_trust_region",
+    "short_loo_steps": 25,
+    "utility_keep_condition": "utility > 0",
+    "parent_reject_locked_zero": true,
+    "minimum_loo_training_frames": 2,
+    "proposal_optimization_steps": 200,
+    "proposals": ["stable", "full", "loo_filtered"],
+    "selection": "minimum same-run validation mean_iou_loss",
+    "tie_priority": ["stable", "full", "loo_filtered"],
+    "same_run_full_candidate_is_evaluation_baseline": true
+  },
+  "development": {
+    "sequences": ["duplo_dude/01", "toy_plane/02"],
+    "seeds": [59, 60, 61, 62, 63, 64],
+    "events": 15,
+    "selection_counts": {
+      "stable": 4,
+      "full": 7,
+      "loo_filtered": 4
+    },
+    "full_candidate_regression_events": 0,
+    "stable_model_regression_events": 0,
+    "strict_iou_improvement_events_vs_full": 8,
+    "mean_iou_loss_delta_vs_full": -0.0006464978059132893,
+    "bootstrap_iou_delta_ci95": [-0.0012114394704500833, -0.00020235180854797364],
+    "mean_pose_inconsistency_delta_vs_full": -0.0002602259318033854,
+    "mean_temporal_std_delta_vs_full": 0.0006987384830911954,
+    "mean_uncertainty_delta_vs_full": -0.00000698740283648173,
+    "mean_loo_elapsed_ms": 24114.45147485162,
+    "seed_iou_deltas": {
+      "59": -0.0019009113311767578,
+      "60": -0.0009347200393676758,
+      "61": -0.0003654658794403076,
+      "62": 0.0,
+      "63": 0.0,
+      "64": -0.0009975433349609375
+    },
+    "acceptance_checks": {
+      "mean_iou_loss": true,
+      "bootstrap_ci_excludes_zero": true,
+      "full_candidate_nonregression": true,
+      "stable_model_nonregression": true,
+      "pose_inconsistency": true,
+      "improved_event_fraction": false,
+      "strict_seed_improvement": false,
+      "temporal_stability": false
+    },
+    "development_pass": false
+  },
+  "decision": {
+    "promote_online": false,
+    "run_independent_validation": false,
+    "reason": "IoU safety and mean gain passed, but temporal stability and legacy strict-improvement criteria failed"
+  },
+  "sha256": {
+    "influence_implementation": "f7d0672884cd650f05dbe52f1f375142de42bf02a6908f140006c351ce16d605",
+    "geometry_replay": "cb2f3d400803d1de21f15ac69e7e88ca216d1ed03c25b631a44cdcacb29b891e",
+    "evaluator": "479342296b040a0e05bf75ce87a7ab7d9e8714bd6c7fcd9221fa120841a906ac",
+    "development_results": "6860f4b8fec96897f803d167b4937eb5cb0bd37d5f00609c35a15c7ae81137c2",
+    "development_evaluation": "54fa7a1ec183edf6a137b464c65e5c10cc3759cbde6b5abe54694e5171ea87cc"
+  }
+}

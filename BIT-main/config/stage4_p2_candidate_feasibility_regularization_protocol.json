@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-08-23",
+  "stage": "stage4_p2",
+  "status": "screening_partial_pass_not_advanced",
+  "method": {
+    "name": "relative_full_multimetric_candidate_regularization",
+    "optimized_candidate": "loo_filtered",
+    "untouched_candidates": ["stable", "full"],
+    "objective": "training_iou + 0.1*laplacian + relu(q_pose_control-q_pose_full) + relu(std_iou_control-std_iou_full)",
+    "mean_control_iou_is_not_optimized": true,
+    "control_frames_are_used_for_candidate_optimization": true,
+    "independent_generalization_claim_requires_new_seeds": true,
+    "pose_weight": 1.0,
+    "temporal_weight": 1.0,
+    "rotation_delta_deg": 2.0,
+    "translation_delta": 0.005
+  },
+  "screening": {
+    "sequences": ["duplo_dude/01", "toy_plane/02"],
+    "seeds": [59, 60, 61, 62, 63, 64],
+    "proposal_steps": 25,
+    "pose_probe_interval": 5,
+    "control_result": "candidate_regularization/screen_control.jsonl",
+    "advance_condition": {
+      "loo_feasible_event_gain_min": 1,
+      "mean_loo_pose_inconsistency_not_greater_than_control": true,
+      "mean_loo_temporal_std_not_greater_than_control": true,
+      "mean_loo_iou_regression_max": 0.001
+    }
+  },
+  "full_development_validation": {
+    "run_only_after_screening_pass": true,
+    "proposal_steps": 200,
+    "pose_probe_interval": 1,
+    "acceptance_protocol": "config/stage4_p2_multimetric_trust_region_protocol.json"
+  },
+  "independent_validation": {
+    "seeds": [68, 69, 70],
+    "run_only_after_full_development_pass": true
+  },
+  "screening_result": {
+    "loo_events": 9,
+    "control_feasible_events": 4,
+    "hinge_feasible_events": 7,
+    "mean_loo_iou_delta_vs_control": -0.00008555915620591905,
+    "mean_loo_pose_delta_vs_control": 0.00022025020249808827,
+    "mean_loo_temporal_delta_vs_control": -0.0003667712315089173,
+    "advance_condition_pass": false,
+    "multimetric_selection_counts": {
+      "stable": 2,
+      "full": 9,
+      "loo": 4
+    },
+    "selected_mean_iou_delta_vs_full": -0.0006767789522806804,
+    "selected_mean_pose_delta_vs_full": -0.0004006167291663587,
+    "selected_mean_temporal_delta_vs_full": -0.0007228539014856021,
+    "selected_bootstrap_iou_ci95": [
+      -0.001266849438349406,
+      -0.0002017517884572347
+    ],
+    "selected_improved_events": 6,
+    "selected_strict_improved_seeds": 5,
+    "selected_acceptance_pass": false,
+    "failed_check": "improved_event_fraction_6_of_15_below_0.5"
+  },
+  "sha256": {
+    "regularizer_implementation": "94084f812e2315b617c08f1e4143cbe86a61b4fb4c5aa49c0febdb2917818dae",
+    "geometry_replay": "7e34772286b3cdd2862a4b383f10b416d9b38eef4cdb7fe6efc3ba1006056581",
+    "multimetric_selector": "6eb4d217f0792d88b75fa94effc15f9b864086f7e3d2d3c582d2108b3bc3edd1",
+    "dual_reference_results": "6860f4b8fec96897f803d167b4937eb5cb0bd37d5f00609c35a15c7ae81137c2",
+    "screen_results": "63407d0de85d5b66de5fdb3f73dbfa2f9e768e3479f2e4edad5b9a565aca2a4a",
+    "selected_results": "850fcf37d5b7ee57d474f67b8520467e4a5d10ea4820d0f999eb9f98715fcb3e",
+    "screen_evaluation": "144ad4068fcc56abb7f7d786bd79dd101d60351f768cfdd65bae0b55f993deca",
+    "evaluator": "ff1c5a002f1987cc2011b0a262729ce389db0cb76f9234c50dac03d050023505"
+  }
+}

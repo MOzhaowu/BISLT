@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-08-23",
+  "stage": "stage4_p2",
+  "status": "development_rejected_not_frozen",
+  "method": {
+    "name": "short_loo_prescreen_monotone_validation_trust_region",
+    "parent_demotion_threshold": 0.09562857459952022,
+    "short_loo_steps": 25,
+    "marginal_utility": "validation_iou_loss(leave_one_out_i)-validation_iou_loss(full)",
+    "utility_keep_condition": "utility > 0",
+    "parent_reject_locked_zero": true,
+    "minimum_training_frames": 2,
+    "candidate_optimization_steps": 200,
+    "commit_condition": "candidate_validation_iou_loss <= stable_validation_iou_loss",
+    "minimum_iou_improvement": 0.0,
+    "rollback_target": "base_stable_geometry",
+    "secondary_pose_guard_enabled": false,
+    "secondary_temporal_guard_enabled": false
+  },
+  "development": {
+    "sequences": ["duplo_dude/01", "toy_plane/02"],
+    "seeds": [59, 60, 61, 62, 63, 64],
+    "events": 15,
+    "committed_events": 8,
+    "rolled_back_events": 7,
+    "monotonicity_violations": 0,
+    "minimum_committed_iou_improvement_vs_stable": 0.0014301538467407227,
+    "mean_iou_loss_delta_vs_original": 0.001217426856358846,
+    "mean_iou_loss_delta_vs_stable": -0.0021625598271687823,
+    "improved_events_vs_original": 5,
+    "mean_pose_inconsistency_delta_vs_original": -0.00040846136786664523,
+    "mean_temporal_std_delta_vs_original": 0.0018855862319469452,
+    "bootstrap_iou_delta_ci95": [-0.0004364113509654999, 0.0032757286727428427],
+    "development_pass": false
+  },
+  "decision": {
+    "promote_online": false,
+    "run_independent_validation": false,
+    "reason": "monotone safety passed, but geometry improvement versus original and seed consistency failed"
+  },
+  "sha256": {
+    "influence_implementation": "f7d0672884cd650f05dbe52f1f375142de42bf02a6908f140006c351ce16d605",
+    "geometry_replay": "cb2f3d400803d1de21f15ac69e7e88ca216d1ed03c25b631a44cdcacb29b891e",
+    "evaluator": "479342296b040a0e05bf75ce87a7ab7d9e8714bd6c7fcd9221fa120841a906ac",
+    "development_results": "e2259245849b6d2edf649d4bac9450c69ce8ad868d8ce6c2f7622c19cd6193f3",
+    "development_evaluation": "652eda7245cb92f1e5dcffae434faca28719b7bc6e32f66434db4ff0cda61013"
+  }
+}

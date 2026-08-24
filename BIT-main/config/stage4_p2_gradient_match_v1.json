@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "frozen_at": "2026-08-23",
+  "stage": "stage4_p2",
+  "method": {
+    "name": "risk_prior_nonnegative_gradient_matching",
+    "base_policy": "p1v2_soft",
+    "objective": "min ||G_normalized*w-g_validation_normalized||^2 + ridge*||w-w_risk||^2",
+    "ridge": 1.0,
+    "weight_bounds": [0.0, 1.0],
+    "parent_reject_locked_zero": true,
+    "uses_stable_geometry_only": true,
+    "learned_object_weights": false
+  },
+  "development": {
+    "sequences": ["duplo_dude/01", "toy_plane/02"],
+    "seeds": [59, 60, 61],
+    "events": 8,
+    "optimized_events": 7,
+    "improved_events": 5,
+    "mean_iou_loss_delta_vs_original": -0.0004050689084189279,
+    "mean_pose_inconsistency_delta": -0.00079447,
+    "mean_temporal_std_delta": -0.00088744,
+    "known_limitation": "seed 60 mean IoU direction is negative"
+  },
+  "independent_validation": {
+    "sequences": ["duplo_dude/01", "toy_plane/02"],
+    "seeds": [62, 63, 64],
+    "frozen_before_execution": true
+  },
+  "acceptance": {
+    "mean_iou_loss_delta_vs_original_max": 0.0,
+    "improved_event_fraction_min": 0.6666666666666666,
+    "mean_pose_inconsistency_delta_max": 0.0,
+    "mean_temporal_std_delta_max": 0.0,
+    "safe_reject_rate_max": 0.10,
+    "safe_nonaccept_rate_max": 0.50,
+    "seed_direction_consistent": true
+  },
+  "sha256": {
+    "influence_implementation": "9e93b2eb0b256ea70adb0c4dcebbc5ce8f0ada30d527471563f87a20db4600bd",
+    "geometry_replay": "1034e0639166acadc4eaf71247c63921476dcf1f2db8d1121600b2c4ae6e7699",
+    "parent_policy": "9af52a62626364f85365fe79a2408e6bb8eb9404ac374f4cf96a94776fa5d835",
+    "development_results": "8b22772bf417d4b742cde98c4ea851ab96ff46e4847508f06fecbdb92eab25e8"
+  }
+}

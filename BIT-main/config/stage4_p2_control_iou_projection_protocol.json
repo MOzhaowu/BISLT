@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-08-23",
+  "stage": "stage4_p2",
+  "status": "screening_pass_pending_200_step_confirmation",
+  "method": {
+    "name": "control_iou_aligned_multimetric_projection",
+    "optimized_candidate": "loo_filtered",
+    "candidate_objective": "training_iou + 0.1*laplacian + control_iou + pose_hinge + temporal_hinge",
+    "weights": {
+      "control_iou": 1.0,
+      "pose_hinge": 1.0,
+      "temporal_hinge": 1.0
+    },
+    "projection_primary": "validation_control_iou",
+    "constraint_scope": "validation_control_frames",
+    "projected_quantity": "bias_corrected_adam_update_direction",
+    "active_halfspaces": [
+      "control_iou_gradient dot update_direction >= 0",
+      "pose_gradient dot update_direction >= 0",
+      "temporal_gradient dot update_direction >= 0"
+    ],
+    "projection_solver": "dykstra_cyclic_euclidean_projection",
+    "projection_cycles": 20,
+    "constraint_activation_epsilon": 1e-8,
+    "projection_feasibility_tolerance": 1e-7,
+    "development_control_frames_are_not_final_test_data": true
+  },
+  "development": {
+    "sequences": ["duplo_dude/01", "toy_plane/02"],
+    "seeds": [59, 60, 61, 62, 63, 64],
+    "proposal_steps": 25,
+    "pose_probe_interval": 5,
+    "control": "training_iou_primary_constrained_projection_25_steps"
+  },
+  "acceptance": {
+    "loo_feasible_events_min": 7,
+    "max_event_iou_loss_delta": 0.0,
+    "max_event_pose_delta": 0.0,
+    "max_event_temporal_delta": 0.0,
+    "bootstrap_iou_upper_bound_max": 0.0,
+    "improved_event_count_min": 8,
+    "strict_improved_seed_count_min": 4,
+    "max_seed_iou_delta": 0.0,
+    "all_projected_steps_feasible": true
+  },
+  "full_development_validation": {
+    "run_only_after_screening_pass": true,
+    "proposal_steps": 200,
+    "pose_probe_interval": 1
+  },
+  "independent_validation": {
+    "seeds": [68, 69, 70],
+    "run_only_after_full_development_pass": true
+  },
+  "screening_result": {
+    "loo_feasible_events": 8,
+    "optimizer_steps": 225,
+    "projected_steps": 17,
+    "pose_active_steps": 7,
+    "temporal_active_steps": 20,
+    "all_projected_steps_feasible": true,
+    "selection_counts": {
+      "stable": 1,
+      "full": 6,
+      "loo": 8
+    },
+    "improved_events": 9,
+    "strict_improved_seeds": 6,
+    "mean_iou_delta": -0.0024940749009450276,
+    "mean_pose_delta": -0.0007395956296628962,
+    "mean_temporal_delta": -0.001991622724259893,
+    "mean_uncertainty_delta": 0.0003918143610159556,
+    "bootstrap_iou_ci95": [
+      -0.0038884228467941286,
+      -0.0012110757827758813
+    ],
+    "pass": true
+  },
+  "sha256": {
+    "projection_implementation": "ee20581f1e56c101e76378b1ce86a9c52fcac8f4bd2f0ff49b19f82e91cb5f84",
+    "geometry_replay": "6dca7c21e0a7e35f221a331f3fce258c9dd4d0026109f55ce4f0e0f8c3755ac2",
+    "current_geometry_replay_after_input_validation": "0e19ccdd6739a6fbebe1caccc755e9e8613fc16d074e703d5696420a3116677a",
+    "training_primary_control_results": "3af18e9ec31c4d32a5792a71d8c5489edfdb2e000f65f1b9ef57d3fd0731edf2",
+    "training_primary_control_evaluation": "9c3a4817d35267edda190fd373c595ee5171e0b020ed73c7d051f5d43569356d",
+    "screen_results": "cd8e268aa61e32779dce69c7f256e3e25275ba57ea6f1f192ffcaae1081df543",
+    "selected_results": "ab1566ef58ef105e3fc37acb8288aa4f3f7781661937826fcfff41b25b0041c8",
+    "screen_evaluation": "7a02894de4938dbbae9a93adfaf6505a3ce517808ed45ba292d50c9e82788e98"
+  }
+}

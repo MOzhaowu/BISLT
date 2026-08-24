@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-08-23",
+  "stage": "stage4_p2",
+  "status": "screening_rejected_not_advanced",
+  "method": {
+    "name": "adam_direction_multimetric_halfspace_projection",
+    "optimized_candidate": "loo_filtered",
+    "untouched_candidates": ["stable", "full"],
+    "base_objective": "training_iou + 0.1*laplacian",
+    "candidate_objective": "base_objective + pose_hinge + temporal_hinge",
+    "pose_weight": 1.0,
+    "temporal_weight": 1.0,
+    "constraint_scope": "validation_control_frames",
+    "pose_threshold": "same_run_full_pose_inconsistency",
+    "temporal_threshold": "same_run_full_temporal_std",
+    "projected_quantity": "bias_corrected_adam_update_direction",
+    "halfspaces": [
+      "primary_gradient dot update_direction >= 0",
+      "active_pose_gradient dot update_direction >= 0",
+      "active_temporal_gradient dot update_direction >= 0"
+    ],
+    "projection_solver": "dykstra_cyclic_euclidean_projection",
+    "projection_cycles": 20,
+    "constraint_activation_epsilon": 1e-8,
+    "projection_feasibility_tolerance": 1e-7
+  },
+  "development": {
+    "sequences": ["duplo_dude/01", "toy_plane/02"],
+    "seeds": [59, 60, 61, 62, 63, 64],
+    "proposal_steps": 25,
+    "pose_probe_interval": 5,
+    "control": "weighted_sum_relative_full_hinge_25_steps"
+  },
+  "acceptance": {
+    "loo_feasible_events_min": 7,
+    "max_event_iou_loss_delta": 0.0,
+    "max_event_pose_delta": 0.0,
+    "max_event_temporal_delta": 0.0,
+    "bootstrap_iou_upper_bound_max": 0.0,
+    "improved_event_count_min": 8,
+    "strict_improved_seed_count_min": 4,
+    "max_seed_iou_delta": 0.0,
+    "all_projected_steps_feasible": true
+  },
+  "full_development_validation": {
+    "run_only_after_screening_pass": true,
+    "proposal_steps": 200,
+    "pose_probe_interval": 1
+  },
+  "independent_validation": {
+    "seeds": [68, 69, 70],
+    "run_only_after_full_development_pass": true
+  },
+  "screening_result": {
+    "loo_feasible_events": 7,
+    "optimizer_steps": 225,
+    "projected_steps": 3,
+    "all_projected_steps_feasible": true,
+    "selection_counts": {
+      "stable": 2,
+      "full": 9,
+      "loo": 4
+    },
+    "improved_events": 6,
+    "strict_improved_seeds": 5,
+    "mean_iou_delta": -0.0007571200529734294,
+    "mean_pose_delta": -0.0005958265780160824,
+    "mean_temporal_delta": -0.000986126344650984,
+    "bootstrap_iou_ci95": [
+      -0.0014430840810139975,
+      -0.00019928216934204102
+    ],
+    "pass": false,
+    "failed_check": "improved_event_count_6_below_8"
+  },
+  "sha256": {
+    "projection_implementation": "ee20581f1e56c101e76378b1ce86a9c52fcac8f4bd2f0ff49b19f82e91cb5f84",
+    "geometry_replay": "0d91fc52777ff68fc9a3a2a33f3aa054bb4eeec34e3de3d0127ccd09239e5d2d",
+    "multimetric_selector": "6eb4d217f0792d88b75fa94effc15f9b864086f7e3d2d3c582d2108b3bc3edd1",
+    "evaluator": "ff1c5a002f1987cc2011b0a262729ce389db0cb76f9234c50dac03d050023505",
+    "acceptance_protocol": "5c6eec333fafc4bbc27d93ffe07460577440fac89fcfab69ded1d39a1657cc27",
+    "dual_reference_results": "6860f4b8fec96897f803d167b4937eb5cb0bd37d5f00609c35a15c7ae81137c2",
+    "weighted_hinge_control": "63407d0de85d5b66de5fdb3f73dbfa2f9e768e3479f2e4edad5b9a565aca2a4a",
+    "screen_results": "3af18e9ec31c4d32a5792a71d8c5489edfdb2e000f65f1b9ef57d3fd0731edf2",
+    "selected_results": "db7582bc1757033449fdf80785822d665e56abfcc8b3fb223d967658381f9bc6",
+    "screen_evaluation": "9c3a4817d35267edda190fd373c595ee5171e0b020ed73c7d051f5d43569356d"
+  }
+}
